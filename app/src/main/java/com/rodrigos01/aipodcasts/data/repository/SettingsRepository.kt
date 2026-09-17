@@ -1,0 +1,48 @@
+package com.rodrigos01.aipodcasts.data.repository
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import com.rodrigos01.aipodcasts.data.api.ApiClient
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "ai_podcasts_settings")
+
+class SettingsRepository(private val context: Context) {
+
+    private val KEY_BASE_URL = stringPreferencesKey("backend_base_url")
+    private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
+
+    val baseUrlFlow: Flow<String> = context.dataStore.data.map { preferences ->
+        val saved = preferences[KEY_BASE_URL]
+        val url = if (saved.isNullOrBlank() || saved == "http://10.0.2.2:3000/") {
+            ApiClient.DEFAULT_BASE_URL
+        } else {
+            saved
+        }
+        ApiClient.currentBaseUrl = url
+        url
+    }
+
+    val themeModeFlow: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[KEY_THEME_MODE] ?: "system" // "system", "light", "dark"
+    }
+
+    suspend fun setBaseUrl(url: String) {
+        val normalized = if (url.endsWith("/")) url else "$url/"
+        ApiClient.currentBaseUrl = normalized
+        context.dataStore.edit { preferences ->
+            preferences[KEY_BASE_URL] = normalized
+        }
+    }
+
+    suspend fun setThemeMode(mode: String) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_THEME_MODE] = mode
+        }
+    }
+}

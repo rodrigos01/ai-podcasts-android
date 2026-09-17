@@ -1,0 +1,170 @@
+<resources>
+    <!-- App General -->
+    <string name="app_name">AI Podcasts</string>
+    <string name="app_tagline">Transform ideas into immersive AI conversations</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_close">Close</string>
+    <string name="action_back">Back</string>
+    <string name="action_next">Next</string>
+    <string name="action_confirm">Confirm</string>
+    <string name="action_create">Create</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_done">Done</string>
+    <string name="loading">Loading…</string>
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_network">Network error. Please verify your backend server.</string>
+    <string name="nav_home">Podcasts</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Authentication -->
+    <string name="auth_title">Welcome to AI Podcasts</string>
+    <string name="auth_subtitle">Create, direct, and listen to AI-powered podcast shows</string>
+    <string name="auth_email_label">Email address</string>
+    <string name="auth_password_label">Password</string>
+    <string name="auth_sign_in_button">Sign In</string>
+    <string name="auth_sign_up_button">Create Account</string>
+    <string name="auth_google_button">Sign in with Google</string>
+    <string name="auth_switch_to_sign_up">Don\'t have an account? Sign Up</string>
+    <string name="auth_switch_to_sign_in">Already have an account? Sign In</string>
+    <string name="auth_sign_out">Sign Out</string>
+    <string name="auth_signed_in_as">Signed in as %1$s</string>
+    <string name="auth_guest_user">Guest User</string>
+    <string name="auth_error_empty_fields">Email and password cannot be empty</string>
+    <string name="auth_error_failed">Authentication failed: %1$s</string>
+
+    <!-- Home Screen -->
+    <string name="home_title">Your Podcasts</string>
+    <string name="home_empty_title">No podcasts yet</string>
+    <string name="home_empty_desc">Create your first AI podcast concept using the 3-option wizard.</string>
+    <string name="home_create_podcast_button">Create Podcast</string>
+    <string name="home_episodes_count">%1$d episodes</string>
+    <string name="home_hosts_count">%1$d hosts</string>
+    <string name="home_podcast_delete_confirm_title">Delete Podcast</string>
+    <string name="home_podcast_delete_confirm_message">Are you sure you want to delete \"%1$s\" and all its episodes and sources? This cannot be undone.</string>
+
+    <!-- Podcast Wizard -->
+    <string name="wizard_podcast_title">New Podcast Wizard</string>
+    <string name="wizard_step_prompt_title">Describe Your Podcast</string>
+    <string name="wizard_step_prompt_desc">Give the AI a concept or topic. We will generate 3 complete show ideas with structure, hosts, personas, and voices.</string>
+    <string name="wizard_prompt_label">Podcast Concept / Prompt</string>
+    <string name="wizard_prompt_hint">e.g., A witty podcast where two tech enthusiasts debate vintage gadgets and forgotten inventions.</string>
+    <string name="wizard_source_material_label">Inspiration / Background Notes (Optional)</string>
+    <string name="wizard_source_material_hint">Paste any rough notes, articles, or reference ideas…</string>
+    <string name="wizard_generate_options_button">Generate 3 Concepts</string>
+    <string name="wizard_step_options_title">Choose a Concept</string>
+    <string name="wizard_step_options_desc">Review the 3 generated concepts. Select your favorite, or refine them using natural language feedback.</string>
+    <string name="wizard_option_badge">Option %1$d</string>
+    <string name="wizard_option_title_label">Title</string>
+    <string name="wizard_option_desc_label">Description</string>
+    <string name="wizard_option_structure_label">Show Structure</string>
+    <string name="wizard_option_hosts_label">Hosts &amp; Voices</string>
+    <string name="wizard_option_predicted_changes">Creative Highlights</string>
+    <string name="wizard_revise_title">Revise Concepts</string>
+    <string name="wizard_revise_hint">e.g., Make the dialogue more casual, or change one host to an eccentric scientist</string>
+    <string name="wizard_revise_target_all">Revise all 3 options</string>
+    <string name="wizard_revise_target_selected">Revise selected option only</string>
+    <string name="wizard_revise_button">Apply Revision</string>
+    <string name="wizard_confirm_button">Create This Podcast</string>
+    <string name="wizard_generating_options">Generating 3 unique podcast concepts…</string>
+    <string name="wizard_revising_options">Revising concepts with your instructions…</string>
+
+    <!-- Podcast Detail Screen -->
+    <string name="podcast_detail_title">Podcast Details</string>
+    <string name="podcast_detail_tab_episodes">Episodes</string>
+    <string name="podcast_detail_tab_sources">Sources</string>
+    <string name="podcast_detail_tab_about">About Show</string>
+    <string name="podcast_detail_hosts_header">Show Hosts</string>
+    <string name="podcast_detail_structure_header">Structure &amp; Format</string>
+    <string name="podcast_detail_new_episode_fab">New Episode</string>
+    <string name="podcast_detail_add_source_button">Add Source</string>
+    <string name="podcast_detail_no_episodes">No episodes created yet. Tap \'+\' to start an episode draft!</string>
+    <string name="podcast_detail_no_sources">No background sources uploaded. Sources help hosts reference real facts during discussions.</string>
+
+    <!-- Sources Screen -->
+    <string name="sources_title">Background Sources</string>
+    <string name="sources_desc">Upload articles or paste texts that hosts will study and cite in their episodes.</string>
+    <string name="sources_add_title">Add Source Material</string>
+    <string name="sources_source_title_label">Source Title</string>
+    <string name="sources_source_content_label">Text Content</string>
+    <string name="sources_source_content_hint">Paste article text, research notes, interview notes…</string>
+    <string name="sources_upload_pdf_button">Upload PDF Document</string>
+    <string name="sources_uploading_pdf">Extracting and uploading text from PDF…</string>
+    <string name="sources_delete_confirm">Delete source \"%1$s\"?</string>
+
+    <!-- Episode Wizard Screen -->
+    <string name="episode_wizard_title">New Episode Wizard</string>
+    <string name="episode_wizard_step_sources_title">1. Select Reference Sources</string>
+    <string name="episode_wizard_step_sources_desc">Choose which sources this episode will cover. You can also provide an optional steering prompt.</string>
+    <string name="episode_wizard_prompt_label">Episode Steering Prompt (Optional)</string>
+    <string name="episode_wizard_prompt_hint">e.g., Focus on the controversy around product design, with a lively debate.</string>
+    <string name="episode_wizard_generate_draft_button">Generate Episode Draft</string>
+    <string name="episode_wizard_step_draft_title">2. Review &amp; Configure Draft</string>
+    <string name="episode_wizard_title_label">Episode Title</string>
+    <string name="episode_wizard_topics_label">Topics Covered</string>
+    <string name="episode_wizard_notes_label">Production Notes</string>
+    <string name="episode_wizard_guests_label">Guest Speaker</string>
+    <string name="episode_wizard_length_label">Episode Length</string>
+    <string name="episode_length_short">Short (20-35 min / ~4k words)</string>
+    <string name="episode_length_medium">Medium (40-50 min / ~7k words)</string>
+    <string name="episode_length_long">Long (50-65 min / ~8.5k words)</string>
+    <string name="episode_wizard_participants_title">Select Exactly 2 Speakers</string>
+    <string name="episode_wizard_participants_desc">Constraint: Each episode must have exactly 2 speakers (2 hosts, or 1 host + 1 guest).</string>
+    <string name="episode_wizard_speakers_count">Selected: %1$d / 2</string>
+    <string name="episode_wizard_speakers_error">You must select exactly 2 speakers (either 2 hosts or 1 host + 1 guest).</string>
+    <string name="episode_wizard_revise_hint">Want to change topics or guest role? Type instruction here…</string>
+    <string name="episode_wizard_revise_button">Revise Draft</string>
+    <string name="episode_wizard_confirm_button">Confirm &amp; Start Generation</string>
+    <string name="episode_wizard_generating_draft">Drafting episode concept from sources…</string>
+    <string name="episode_wizard_confirming">Starting episode generation in background…</string>
+
+    <!-- Episode Detail & Status Screen -->
+    <string name="episode_detail_title">Episode</string>
+    <string name="episode_status_generating">Generating Conversation…</string>
+    <string name="episode_status_ready">Ready to Play</string>
+    <string name="episode_status_failed">Generation Failed</string>
+    <string name="episode_progress_stage">Stage: %1$s</string>
+    <string name="episode_progress_words">%1$d words generated</string>
+    <string name="episode_play_stream_button">Play Episode Stream</string>
+    <string name="episode_resume_button">Resume Episode (%1$s)</string>
+    <string name="episode_restart_button">Play from Beginning</string>
+    <string name="episode_live_stream_notice">Episode is generating live! Audio will stream as chunks are produced.</string>
+    <string name="episode_transcript_title">Conversation Transcript</string>
+    <string name="episode_transcript_empty">Transcript will appear here once initial generation finishes.</string>
+    <string name="episode_regenerate_button">Restart Generation</string>
+    <string name="episode_delete_confirm">Delete episode \"%1$s\"?</string>
+
+    <!-- Audio Player -->
+    <string name="player_title">Now Playing</string>
+    <string name="player_speed_label">Speed: %1$sx</string>
+    <string name="player_rewind_10">Rewind 10 seconds</string>
+    <string name="player_forward_30">Forward 30 seconds</string>
+    <string name="player_play">Play</string>
+    <string name="player_pause">Pause</string>
+    <string name="player_buffering">Buffering stream…</string>
+    <string name="player_transcript_tab">Transcript</string>
+    <string name="player_details_tab">Info</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_server_header">Backend Server</string>
+    <string name="settings_server_url_label">API Base URL</string>
+    <string name="settings_server_url_hint">https://ai-podcasts-883622140264.us-central1.run.app/</string>
+    <string name="settings_server_preset_cloud_run">Cloud Run (Production)</string>
+    <string name="settings_server_preset_emulator">Android Emulator (10.0.2.2)</string>
+    <string name="settings_server_preset_localhost">Localhost (127.0.0.1)</string>
+    <string name="settings_server_test_button">Test Connection</string>
+    <string name="settings_server_status_ok">Backend is online and reachable!</string>
+    <string name="settings_server_status_error">Could not reach backend: %1$s</string>
+    <string name="settings_appearance_header">Appearance</string>
+    <string name="settings_theme_label">Theme</string>
+    <string name="settings_theme_system">System Default</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_account_header">Firebase Account</string>
+    <string name="settings_about_header">About</string>
+    <string name="settings_version">Version 1.0.0 (AI Podcasts)</string>
+</resources>
