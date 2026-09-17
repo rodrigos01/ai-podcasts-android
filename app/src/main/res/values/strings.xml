@@ -94,6 +94,18 @@
     <string name="sources_upload_pdf_button">Upload PDF Document</string>
     <string name="sources_uploading_pdf">Extracting and uploading text from PDF…</string>
     <string name="sources_delete_confirm">Delete source \"%1$s\"?</string>
+    <string name="sources_tab_file">Local File</string>
+    <string name="sources_tab_drive">Google Drive</string>
+    <string name="sources_tab_text">Plain Text</string>
+    <string name="sources_select_file_button">Select File (PDF or TXT)</string>
+    <string name="sources_pick_drive_button">Pick from Google Drive</string>
+    <string name="sources_drive_resolving">Connecting to Google Drive…</string>
+    <string name="sources_drive_linked">Google Drive document linked</string>
+    <string name="sources_drive_auth_required">Google Drive authorization required</string>
+    <string name="sources_drive_not_found">Could not link file in Google Drive. Direct upload will be used.</string>
+    <string name="sources_uploading_source">Adding source material…</string>
+    <string name="sources_no_file_selected">Please select a file</string>
+    <string name="sources_file_selected_label">Selected file: %1$s</string>
 
     <!-- Episode Wizard Screen -->
     <string name="episode_wizard_title">New Episode Wizard</string>

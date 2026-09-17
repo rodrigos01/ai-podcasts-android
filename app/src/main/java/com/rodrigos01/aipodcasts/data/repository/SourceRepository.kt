@@ -2,6 +2,7 @@ package com.rodrigos01.aipodcasts.data.repository
 
 import com.rodrigos01.aipodcasts.data.api.ApiClient
 import com.rodrigos01.aipodcasts.data.api.PodcastApiService
+import com.rodrigos01.aipodcasts.data.model.CreateDriveSourceRequest
 import com.rodrigos01.aipodcasts.data.model.CreateSourceRequest
 import com.rodrigos01.aipodcasts.data.model.Source
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -34,12 +35,28 @@ class SourceRepository(
     suspend fun uploadPdfSource(
         podcastId: String,
         file: File,
+        fileName: String = file.name,
         customTitle: String? = null
     ): Source {
         val requestFile = file.asRequestBody("application/pdf".toMediaTypeOrNull())
-        val body = MultipartBody.Part.createFormData("file", file.name, requestFile)
-        val titlePart = customTitle?.toRequestBody("text/plain".toMediaTypeOrNull())
+        val body = MultipartBody.Part.createFormData("file", fileName, requestFile)
+        val title = customTitle?.takeIf { it.isNotBlank() } ?: fileName
+        val titlePart = title.toRequestBody("text/plain".toMediaTypeOrNull())
         return api.uploadSourceFile(podcastId, body, titlePart)
+    }
+
+    suspend fun createDriveSource(
+        podcastId: String,
+        fileId: String,
+        accessToken: String,
+        title: String? = null
+    ): Source {
+        val request = CreateDriveSourceRequest(
+            fileId = fileId,
+            accessToken = accessToken,
+            title = title
+        )
+        return api.createDriveSource(podcastId, request)
     }
 
     suspend fun deleteSource(podcastId: String, sourceId: String): Boolean {

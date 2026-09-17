@@ -87,6 +87,13 @@ data class CreateSourceRequest(
     @Json(name = "contents") val contents: String
 )
 
+@JsonClass(generateAdapter = true)
+data class CreateDriveSourceRequest(
+    @Json(name = "fileId") val fileId: String,
+    @Json(name = "accessToken") val accessToken: String,
+    @Json(name = "title") val title: String? = null
+)
+
 // Episodes
 @JsonClass(generateAdapter = true)
 data class EpisodeGuest(

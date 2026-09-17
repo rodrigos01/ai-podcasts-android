@@ -1,5 +1,6 @@
 package com.rodrigos01.aipodcasts.data.api
 
+import com.rodrigos01.aipodcasts.data.model.CreateDriveSourceRequest
 import com.rodrigos01.aipodcasts.data.model.CreateEpisodeRequest
 import com.rodrigos01.aipodcasts.data.model.CreatePodcastRequest
 import com.rodrigos01.aipodcasts.data.model.CreateSourceRequest
@@ -78,6 +79,12 @@ interface PodcastApiService {
     suspend fun createSource(
         @Path("podcastId") podcastId: String,
         @Body request: CreateSourceRequest
+    ): Source
+
+    @POST("podcasts/{podcastId}/sources")
+    suspend fun createDriveSource(
+        @Path("podcastId") podcastId: String,
+        @Body request: CreateDriveSourceRequest
     ): Source
 
     @Multipart

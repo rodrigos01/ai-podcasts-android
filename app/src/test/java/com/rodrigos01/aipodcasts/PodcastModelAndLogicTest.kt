@@ -1,6 +1,7 @@
 package com.rodrigos01.aipodcasts
 
 import com.rodrigos01.aipodcasts.data.api.ApiClient
+import com.rodrigos01.aipodcasts.data.model.CreateDriveSourceRequest
 import com.rodrigos01.aipodcasts.data.model.EpisodeDraft
 import com.rodrigos01.aipodcasts.data.model.EpisodeGuest
 import com.rodrigos01.aipodcasts.data.model.Host
@@ -12,6 +13,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.google.android.gms.auth.api.identity.AuthorizationRequest
+import com.google.android.gms.auth.api.identity.AuthorizationResult
+import com.google.android.gms.common.api.Scope
+import com.rodrigos01.aipodcasts.data.drive.GoogleDriveHelper
+import com.rodrigos01.aipodcasts.data.drive.DriveFileInfo
+import com.rodrigos01.aipodcasts.util.FileUtils
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Podcasts
@@ -64,6 +71,103 @@ class PodcastModelAndLogicTest {
         assertNotNull(option)
         assertEquals("Retro Tech", option?.title)
         assertEquals(2, option?.predictedChanges?.size)
+    }
+
+    @Test
+    fun testCreateDriveSourceRequestSerialization() {
+        val adapter = moshi.adapter(CreateDriveSourceRequest::class.java)
+        val request = CreateDriveSourceRequest(
+            fileId = "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+            accessToken = "ya29.a0AfH6SM...",
+            title = "My Research Document"
+        )
+        val json = adapter.toJson(request)
+        assertTrue(json.contains("\"fileId\":\"1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\""))
+        assertTrue(json.contains("\"accessToken\":\"ya29.a0AfH6SM...\""))
+        assertTrue(json.contains("\"title\":\"My Research Document\""))
+
+        val parsed = adapter.fromJson(json)
+        assertNotNull(parsed)
+        assertEquals(request.fileId, parsed?.fileId)
+        assertEquals(request.accessToken, parsed?.accessToken)
+        assertEquals(request.title, parsed?.title)
+    }
+
+    @Test
+    fun testDriveFileIdRegexExtraction() {
+        val uriStr1 = "content://com.google.android.apps.docs.storage/document/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+        val match1 = Regex("([a-zA-Z0-9_-]{25,})").find(uriStr1)
+        assertNotNull(match1)
+        assertEquals("1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms", match1?.value)
+
+        val docId2 = "doc=1s8zN3W_K9jLeP4Q0-xyzABC1234567890;other=val"
+        val docParamMatch = Regex("doc=([a-zA-Z0-9_-]{20,})").find(docId2)
+        assertNotNull(docParamMatch)
+        assertEquals("1s8zN3W_K9jLeP4Q0-xyzABC1234567890", docParamMatch?.groupValues?.get(1))
+    }
+
+    @Test
+    fun testFileExtensionChecks() {
+        assertTrue("document.txt".endsWith(".txt", ignoreCase = true))
+        assertTrue("DOCUMENT.TXT".endsWith(".txt", ignoreCase = true))
+        assertTrue("notes.pdf".endsWith(".pdf", ignoreCase = true))
+        assertTrue("NOTES.PDF".endsWith(".pdf", ignoreCase = true))
+    }
+
+    @Test
+    fun testExtractGoogleDocId() {
+        val mockUri1 = org.mockito.Mockito.mock(android.net.Uri::class.java)
+        org.mockito.Mockito.`when`(mockUri1.toString()).thenReturn("https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit")
+        val id1 = GoogleDriveHelper.extractGoogleDocId(mockUri1)
+        assertEquals("1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms", id1)
+
+        val mockUri2 = org.mockito.Mockito.mock(android.net.Uri::class.java)
+        org.mockito.Mockito.`when`(mockUri2.toString()).thenReturn("https://drive.google.com/file/d/1s8zN3W_K9jLeP4Q0-xyzABC1234567890/view")
+        val id2 = GoogleDriveHelper.extractGoogleDocId(mockUri2)
+        assertEquals("1s8zN3W_K9jLeP4Q0-xyzABC1234567890", id2)
+
+        val mockUri3 = org.mockito.Mockito.mock(android.net.Uri::class.java)
+        org.mockito.Mockito.`when`(mockUri3.toString()).thenReturn("content://com.google.android.apps.docs.storage/document?doc=1s8zN3W_K9jLeP4Q0-xyzABC1234567890")
+        val id3 = GoogleDriveHelper.extractGoogleDocId(mockUri3)
+        assertEquals("1s8zN3W_K9jLeP4Q0-xyzABC1234567890", id3)
+
+        // Ensure encoded doc ids return null
+        val mockUriEnc = org.mockito.Mockito.mock(android.net.Uri::class.java)
+        org.mockito.Mockito.`when`(mockUriEnc.toString()).thenReturn("content://com.google.android.apps.docs.storage/document?doc=enc=abcde12345678901234567890")
+        val idEnc = GoogleDriveHelper.extractGoogleDocId(mockUriEnc)
+        assertEquals(null, idEnc)
+    }
+
+    @Test
+    fun testCleanFileName() {
+        assertEquals("My Document", FileUtils.cleanFileName("My Document.txt"))
+        assertEquals("Document.archive", FileUtils.cleanFileName("Document.archive.pdf"))
+        assertEquals("PlainDoc", FileUtils.cleanFileName("PlainDoc"))
+        assertEquals(null, FileUtils.cleanFileName(""))
+        assertEquals(null, FileUtils.cleanFileName("   "))
+        assertEquals(null, FileUtils.cleanFileName(null))
+    }
+
+    @Test
+    fun testDriveFileInfo() {
+        val info = DriveFileInfo(
+            id = "drive-123",
+            name = "Project Spec",
+            mimeType = "application/vnd.google-apps.document"
+        )
+        assertEquals("drive-123", info.id)
+        assertEquals("Project Spec", info.name)
+        assertEquals("application/vnd.google-apps.document", info.mimeType)
+    }
+
+    @Test
+    fun testPrintAuthorizationRequestMethods() {
+        for (f in AuthorizationRequest.ResourceParameter::class.java.fields) {
+            println("RESOURCE_PARAM_FIELD: ${f.name} = ${f.get(null)}")
+        }
+        for (f in AuthorizationRequest.Prompt::class.java.fields) {
+            println("PROMPT_FIELD: ${f.name} = ${f.get(null)}")
+        }
     }
 
     @Test
