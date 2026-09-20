@@ -8,7 +8,9 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.rodrigos01.aipodcasts.data.api.ApiClient
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "ai_podcasts_settings")
 
@@ -17,9 +19,21 @@ class SettingsRepository(private val context: Context) {
     private val KEY_BASE_URL = stringPreferencesKey("backend_base_url")
     private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
 
+    init {
+        // Apply the persisted base URL immediately so requests made before the
+        // Settings screen is ever opened use the user's saved choice, not the
+        // hardcoded default.
+        runBlocking {
+            val saved = context.dataStore.data.first()[KEY_BASE_URL]
+            if (!saved.isNullOrBlank()) {
+                ApiClient.currentBaseUrl = saved
+            }
+        }
+    }
+
     val baseUrlFlow: Flow<String> = context.dataStore.data.map { preferences ->
         val saved = preferences[KEY_BASE_URL]
-        val url = if (saved.isNullOrBlank() || saved == "http://10.0.2.2:3000/") {
+        val url = if (saved.isNullOrBlank()) {
             ApiClient.DEFAULT_BASE_URL
         } else {
             saved

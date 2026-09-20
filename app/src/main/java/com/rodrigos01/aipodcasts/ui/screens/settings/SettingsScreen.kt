@@ -25,7 +25,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -43,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rodrigos01.aipodcasts.R
+import com.rodrigos01.aipodcasts.data.api.ApiClient
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 import com.rodrigos01.aipodcasts.ui.theme.ReadyGreen
@@ -111,19 +111,19 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         FilterChip(
-                            selected = uiState.baseUrl.startsWith("https://ai-podcasts-883622140264.us-central1.run.app"),
+                            selected = uiState.baseUrl == ApiClient.DEFAULT_BASE_URL,
                             onClick = {
-                                viewModel.onBaseUrlChanged("https://ai-podcasts-883622140264.us-central1.run.app/")
-                                viewModel.saveBaseUrl("https://ai-podcasts-883622140264.us-central1.run.app/")
+                                viewModel.onBaseUrlChanged(ApiClient.DEFAULT_BASE_URL)
+                                viewModel.saveBaseUrl(ApiClient.DEFAULT_BASE_URL)
                             },
                             label = { Text(stringResource(R.string.settings_server_preset_cloud_run)) },
                             shape = ExpressiveShapes.extraSmall
                         )
                         FilterChip(
-                            selected = uiState.baseUrl == "http://10.0.2.2:3000/",
+                            selected = uiState.baseUrl == ApiClient.EMULATOR_LOCAL_BASE_URL,
                             onClick = {
-                                viewModel.onBaseUrlChanged("http://10.0.2.2:3000/")
-                                viewModel.saveBaseUrl("http://10.0.2.2:3000/")
+                                viewModel.onBaseUrlChanged(ApiClient.EMULATOR_LOCAL_BASE_URL)
+                                viewModel.saveBaseUrl(ApiClient.EMULATOR_LOCAL_BASE_URL)
                             },
                             label = { Text(stringResource(R.string.settings_server_preset_emulator)) },
                             shape = ExpressiveShapes.extraSmall

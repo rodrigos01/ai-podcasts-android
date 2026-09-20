@@ -12,7 +12,8 @@ import java.util.concurrent.TimeUnit
 
 object ApiClient {
 
-    const val DEFAULT_BASE_URL = "https://ai-podcasts-883622140264.us-central1.run.app/"
+    const val DEFAULT_BASE_URL = "https://ai-podcast-api-883622140264.us-central1.run.app/"
+    const val EMULATOR_LOCAL_BASE_URL = "http://10.0.2.2:3000/"
 
     @Volatile
     var currentBaseUrl: String = DEFAULT_BASE_URL

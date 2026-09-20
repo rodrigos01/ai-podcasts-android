@@ -172,7 +172,7 @@
     <string name="settings_title">Settings</string>
     <string name="settings_server_header">Backend Server</string>
     <string name="settings_server_url_label">API Base URL</string>
-    <string name="settings_server_url_hint">https://ai-podcasts-883622140264.us-central1.run.app/</string>
+    <string name="settings_server_url_hint">https://ai-podcast-api-883622140264.us-central1.run.app/</string>
     <string name="settings_server_preset_cloud_run">Cloud Run (Production)</string>
     <string name="settings_server_preset_emulator">Android Emulator (10.0.2.2)</string>
     <string name="settings_server_preset_localhost">Localhost (127.0.0.1)</string>

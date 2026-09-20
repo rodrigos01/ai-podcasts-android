@@ -205,7 +205,7 @@ class PodcastModelAndLogicTest {
 
     @Test
     fun testDefaultBaseUrlIsProductionCloudRun() {
-        assertEquals("https://ai-podcasts-883622140264.us-central1.run.app/", ApiClient.DEFAULT_BASE_URL)
+        assertEquals("https://ai-podcast-api-883622140264.us-central1.run.app/", ApiClient.DEFAULT_BASE_URL)
     }
 
     @Test
