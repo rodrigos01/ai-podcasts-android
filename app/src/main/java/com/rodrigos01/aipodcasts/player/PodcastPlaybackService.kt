@@ -24,10 +24,8 @@ class PodcastPlaybackService : MediaSessionService() {
             .setReadTimeoutMs(60_000)
             .setAllowCrossProtocolRedirects(true)
 
-        val chainedOggDataSourceFactory = ChainedOggDataSource.Factory(httpDataSourceFactory)
-
         val mediaSourceFactory = DefaultMediaSourceFactory(this)
-            .setDataSourceFactory(chainedOggDataSourceFactory)
+            .setDataSourceFactory(httpDataSourceFactory)
 
         val player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(mediaSourceFactory)
