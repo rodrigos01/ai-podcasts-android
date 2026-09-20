@@ -80,14 +80,16 @@ class PodcastWizardViewModel(
         }
     }
 
-    fun applyRevision() {
-        val instruction = _uiState.value.revisionInstruction.trim()
+    fun applyRevision(instructionOverride: String? = null) {
+        val instruction = (instructionOverride ?: _uiState.value.revisionInstruction).trim()
         if (instruction.isBlank()) return
 
         val currentOptions = _uiState.value.options
         if (currentOptions.isEmpty()) return
 
-        val targetIndex = if (_uiState.value.reviseTargetSelectedOnly) {
+        // A predicted change belongs to the option it was shown on, so it always targets
+        // the currently-selected option regardless of the selected/all toggle.
+        val targetIndex = if (instructionOverride != null || _uiState.value.reviseTargetSelectedOnly) {
             _uiState.value.selectedOptionIndex
         } else {
             null
@@ -104,7 +106,7 @@ class PodcastWizardViewModel(
                 _uiState.value = _uiState.value.copy(
                     isRevising = false,
                     options = revised,
-                    revisionInstruction = ""
+                    revisionInstruction = if (instructionOverride != null) _uiState.value.revisionInstruction else ""
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(

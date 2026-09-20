@@ -59,6 +59,7 @@ val ExpressiveOutlineDark = Color(0xFF918F9A)
 
 // Status & Indicators
 val GeneratingAmber = Color(0xFFF59E0B)
+val StreamableBlue = Color(0xFF3B82F6)
 val ReadyGreen = Color(0xFF10B981)
 val ErrorRed = Color(0xFFEF4444)
 val LiveBadge = Color(0xFFEC4899)

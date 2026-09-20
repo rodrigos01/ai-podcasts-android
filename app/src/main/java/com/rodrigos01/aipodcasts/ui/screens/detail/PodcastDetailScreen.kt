@@ -24,7 +24,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PlayCircleOutline
-import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,6 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -64,7 +65,6 @@ fun PodcastDetailScreen(
     onNavigateBack: () -> Unit,
     onNavigateToEpisodeWizard: (String) -> Unit,
     onNavigateToEpisodeDetail: (String, String) -> Unit,
-    onNavigateToSources: (String) -> Unit,
     viewModel: PodcastDetailViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -151,7 +151,8 @@ fun PodcastDetailScreen(
                             items(uiState.episodes, key = { it.id }) { episode ->
                                 EpisodeItemCard(
                                     episode = episode,
-                                    onClick = { onNavigateToEpisodeDetail(podcastId, episode.id) }
+                                    onClick = { onNavigateToEpisodeDetail(podcastId, episode.id) },
+                                    onDelete = { viewModel.promptDeleteEpisode(episode) }
                                 )
                             }
                         }
@@ -172,23 +173,13 @@ fun PodcastDetailScreen(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
-                            Button(
-                                onClick = { onNavigateToSources(podcastId) },
-                                shape = ExpressiveShapes.small
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(stringResource(R.string.podcast_detail_add_source_button))
-                            }
                         }
 
                         if (uiState.sources.isEmpty()) {
                             EmptyState(
                                 icon = Icons.Default.Description,
                                 title = stringResource(R.string.podcast_detail_no_sources),
-                                description = stringResource(R.string.sources_desc),
-                                actionButtonText = stringResource(R.string.podcast_detail_add_source_button),
-                                onActionClick = { onNavigateToSources(podcastId) }
+                                description = stringResource(R.string.sources_desc)
                             )
                         } else {
                             LazyColumn(
@@ -261,13 +252,34 @@ fun PodcastDetailScreen(
                 }
             }
         }
+
+        if (uiState.episodeToDelete != null) {
+            val episode = uiState.episodeToDelete!!
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissDeleteEpisodeDialog() },
+                title = { Text(stringResource(R.string.episode_delete_confirm_title)) },
+                text = { Text(stringResource(R.string.episode_delete_confirm, episode.title)) },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.confirmDeleteEpisode(podcastId) }) {
+                        Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.dismissDeleteEpisodeDialog() }) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                },
+                shape = ExpressiveShapes.large
+            )
+        }
     }
 }
 
 @Composable
 fun EpisodeItemCard(
     episode: Episode,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDelete: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
@@ -295,6 +307,13 @@ fun EpisodeItemCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 StatusBadge(status = episode.status)
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.action_delete),
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                }
             }
 
             if (episode.topics.isNotBlank()) {

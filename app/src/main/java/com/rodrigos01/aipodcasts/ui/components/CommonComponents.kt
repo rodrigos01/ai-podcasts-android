@@ -60,6 +60,7 @@ import com.rodrigos01.aipodcasts.player.PodcastAudioController
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 import com.rodrigos01.aipodcasts.ui.theme.GeneratingAmber
 import com.rodrigos01.aipodcasts.ui.theme.ReadyGreen
+import com.rodrigos01.aipodcasts.ui.theme.StreamableBlue
 import com.rodrigos01.aipodcasts.ui.theme.ErrorRed
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -102,6 +103,7 @@ fun ExpressiveTopAppBar(
 fun StatusBadge(status: String) {
     val (bgColor, textColor, labelRes) = when (status.lowercase()) {
         "ready" -> Triple(ReadyGreen.copy(alpha = 0.18f), ReadyGreen, R.string.episode_status_ready)
+        "streamable" -> Triple(StreamableBlue.copy(alpha = 0.18f), StreamableBlue, R.string.episode_status_streamable)
         "generating" -> Triple(GeneratingAmber.copy(alpha = 0.18f), GeneratingAmber, R.string.episode_status_generating)
         else -> Triple(ErrorRed.copy(alpha = 0.18f), ErrorRed, R.string.episode_status_failed)
     }

@@ -15,21 +15,25 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -72,12 +76,28 @@ fun EpisodeDetailScreen(
         viewModel.refreshSavedPosition()
     }
 
+    LaunchedEffect(uiState.isDeleted) {
+        if (uiState.isDeleted) {
+            onNavigateBack()
+        }
+    }
+
     Scaffold(
         topBar = {
             ExpressiveTopAppBar(
                 title = uiState.episode?.title ?: stringResource(R.string.episode_detail_title),
                 canNavigateBack = true,
-                onNavigateBack = onNavigateBack
+                onNavigateBack = onNavigateBack,
+                actions = {
+                    if (uiState.episode != null) {
+                        IconButton(onClick = { viewModel.promptDelete() }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = stringResource(R.string.action_delete)
+                            )
+                        }
+                    }
+                }
             )
         }
     ) { padding ->
@@ -133,8 +153,11 @@ fun EpisodeDetailScreen(
                                 )
                             }
 
-                            // Progress indicator if generating
-                            if (uiState.status.equals("generating", ignoreCase = true)) {
+                            // Progress indicator while generating or streamable (generation still running either way)
+                            val isStillGenerating = uiState.status.equals("generating", ignoreCase = true)
+                            val isStreamable = uiState.status.equals("streamable", ignoreCase = true)
+                            val canPlay = isStreamable || uiState.status.equals("ready", ignoreCase = true)
+                            if (isStillGenerating || isStreamable) {
                                 Spacer(modifier = Modifier.height(14.dp))
                                 LinearProgressIndicator(
                                     modifier = Modifier.fillMaxWidth(),
@@ -163,7 +186,10 @@ fun EpisodeDetailScreen(
 
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = stringResource(R.string.episode_live_stream_notice),
+                                    text = stringResource(
+                                        if (isStreamable) R.string.episode_streamable_notice
+                                        else R.string.episode_live_stream_notice
+                                    ),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.tertiary
                                 )
@@ -177,7 +203,8 @@ fun EpisodeDetailScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp),
-                                shape = ExpressiveShapes.medium
+                                shape = ExpressiveShapes.medium,
+                                enabled = canPlay
                             ) {
                                 Icon(
                                     imageVector = if (isCurrentActiveEpisode && isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
@@ -202,7 +229,8 @@ fun EpisodeDetailScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(44.dp),
-                                    shape = ExpressiveShapes.medium
+                                    shape = ExpressiveShapes.medium,
+                                    enabled = canPlay
                                 ) {
                                     Icon(Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -298,6 +326,32 @@ fun EpisodeDetailScreen(
                     }
                 }
             }
+        }
+
+        if (uiState.showDeleteConfirm) {
+            val title = uiState.episode?.title ?: ""
+            AlertDialog(
+                onDismissRequest = { if (!uiState.isDeleting) viewModel.dismissDeleteConfirm() },
+                title = { Text(stringResource(R.string.episode_delete_confirm_title)) },
+                text = { Text(stringResource(R.string.episode_delete_confirm, title)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = { viewModel.confirmDelete(podcastId, episodeId) },
+                        enabled = !uiState.isDeleting
+                    ) {
+                        Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { viewModel.dismissDeleteConfirm() },
+                        enabled = !uiState.isDeleting
+                    ) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                },
+                shape = ExpressiveShapes.large
+            )
         }
     }
 }

@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rodrigos01.aipodcasts.R
@@ -200,7 +201,11 @@ fun PodcastWizardScreen(
                 // Display selected concept card
                 if (uiState.options.isNotEmpty() && uiState.selectedOptionIndex in uiState.options.indices) {
                     val activeOption = uiState.options[uiState.selectedOptionIndex]
-                    OptionDetailCard(option = activeOption)
+                    OptionDetailCard(
+                        option = activeOption,
+                        isRevising = uiState.isRevising,
+                        onApplyPredictedChange = { change -> viewModel.applyRevision(instructionOverride = change) }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -317,7 +322,11 @@ fun PodcastWizardScreen(
 }
 
 @Composable
-fun OptionDetailCard(option: PodcastOption) {
+fun OptionDetailCard(
+    option: PodcastOption,
+    isRevising: Boolean = false,
+    onApplyPredictedChange: (String) -> Unit = {}
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ExpressiveShapes.medium,
@@ -382,13 +391,25 @@ fun OptionDetailCard(option: PodcastOption) {
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.tertiary
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                option.predictedChanges.forEach { change ->
-                    Text(
-                        text = "• $change",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Spacer(modifier = Modifier.height(6.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    option.predictedChanges.forEach { change ->
+                        OutlinedButton(
+                            onClick = { onApplyPredictedChange(change) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ExpressiveShapes.small,
+                            enabled = !isRevising
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = change,
+                                style = MaterialTheme.typography.bodySmall,
+                                textAlign = TextAlign.Start,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
             }
         }

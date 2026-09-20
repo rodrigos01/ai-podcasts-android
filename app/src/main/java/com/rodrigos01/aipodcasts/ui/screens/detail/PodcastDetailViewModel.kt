@@ -20,6 +20,7 @@ data class PodcastDetailUiState(
     val episodes: List<Episode> = emptyList(),
     val sources: List<Source> = emptyList(),
     val selectedTab: Int = 0, // 0: Episodes, 1: Sources, 2: About Show
+    val episodeToDelete: Episode? = null,
     val errorMessage: String? = null
 )
 
@@ -67,6 +68,32 @@ class PodcastDetailViewModel(
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(errorMessage = e.localizedMessage ?: e.message)
+            }
+        }
+    }
+
+    fun promptDeleteEpisode(episode: Episode) {
+        _uiState.value = _uiState.value.copy(episodeToDelete = episode)
+    }
+
+    fun dismissDeleteEpisodeDialog() {
+        _uiState.value = _uiState.value.copy(episodeToDelete = null)
+    }
+
+    fun confirmDeleteEpisode(podcastId: String) {
+        val episode = _uiState.value.episodeToDelete ?: return
+        viewModelScope.launch {
+            try {
+                episodeRepo.deleteEpisode(podcastId, episode.id)
+                _uiState.value = _uiState.value.copy(
+                    episodeToDelete = null,
+                    episodes = _uiState.value.episodes.filter { it.id != episode.id }
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    episodeToDelete = null,
+                    errorMessage = e.localizedMessage ?: e.message
+                )
             }
         }
     }

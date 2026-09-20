@@ -28,7 +28,10 @@ data class EpisodeDetailUiState(
     val isPolling: Boolean = false,
     val isRegenerating: Boolean = false,
     val errorMessage: String? = null,
-    val savedPositionMs: Long = 0L
+    val savedPositionMs: Long = 0L,
+    val showDeleteConfirm: Boolean = false,
+    val isDeleting: Boolean = false,
+    val isDeleted: Boolean = false
 )
 
 class EpisodeDetailViewModel(
@@ -60,7 +63,9 @@ class EpisodeDetailViewModel(
                     savedPositionMs = savedPos
                 )
 
-                if (ep.status.equals("generating", ignoreCase = true)) {
+                if (ep.status.equals("generating", ignoreCase = true) ||
+                    ep.status.equals("streamable", ignoreCase = true)
+                ) {
                     startStatusPolling(podcastId, episodeId)
                 }
             } catch (e: Exception) {
@@ -154,6 +159,34 @@ class EpisodeDetailViewModel(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isRegenerating = false,
+                    errorMessage = e.localizedMessage ?: e.message
+                )
+            }
+        }
+    }
+
+    fun promptDelete() {
+        _uiState.value = _uiState.value.copy(showDeleteConfirm = true)
+    }
+
+    fun dismissDeleteConfirm() {
+        _uiState.value = _uiState.value.copy(showDeleteConfirm = false)
+    }
+
+    fun confirmDelete(podcastId: String, episodeId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isDeleting = true)
+            try {
+                episodeRepo.deleteEpisode(podcastId, episodeId)
+                _uiState.value = _uiState.value.copy(
+                    isDeleting = false,
+                    showDeleteConfirm = false,
+                    isDeleted = true
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isDeleting = false,
+                    showDeleteConfirm = false,
                     errorMessage = e.localizedMessage ?: e.message
                 )
             }
