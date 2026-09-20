@@ -157,7 +157,8 @@ data class EpisodeProgress(
 data class EpisodeStatusResponse(
     @Json(name = "status") val status: String,
     @Json(name = "progress") val progress: EpisodeProgress? = null,
-    @Json(name = "error") val error: String? = null
+    @Json(name = "error") val error: String? = null,
+    @Json(name = "generatedAudioSeconds") val generatedAudioSeconds: Double? = null
 )
 
 @JsonClass(generateAdapter = true)

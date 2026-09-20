@@ -13,6 +13,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.rodrigos01.aipodcasts.data.api.ApiClient
 import com.rodrigos01.aipodcasts.data.model.Episode
+import com.rodrigos01.aipodcasts.data.repository.EpisodeRepository
 import com.rodrigos01.aipodcasts.data.repository.PlaybackPositionRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,13 +29,17 @@ import kotlinx.coroutines.launch
 class PodcastAudioController(
     private val context: Context,
     private val playbackPositionRepository: PlaybackPositionRepository = PlaybackPositionRepository(context),
+    private val episodeRepository: EpisodeRepository = EpisodeRepository(),
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main)
 ) {
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var mediaController: MediaController? = null
     private var progressJob: Job? = null
+    private var statusPollJob: Job? = null
     private var streamStartOffsetMs: Long = 0L
+    private var currentPodcastId: String? = null
+    private var currentIdToken: String? = null
 
     private val _currentEpisode = MutableStateFlow<Episode?>(null)
     val currentEpisode: StateFlow<Episode?> = _currentEpisode.asStateFlow()
@@ -56,6 +61,11 @@ class PodcastAudioController(
 
     private val _playbackSpeed = MutableStateFlow(1.0f)
     val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
+
+    // How much of the episode's audio has been synthesized so far, in seconds.
+    // Null until the first status poll resolves; stops updating once the episode is "ready".
+    private val _generatedAudioSeconds = MutableStateFlow<Double?>(null)
+    val generatedAudioSeconds: StateFlow<Double?> = _generatedAudioSeconds.asStateFlow()
 
     init {
         val sessionToken = SessionToken(context, ComponentName(context, PodcastPlaybackService::class.java))
@@ -130,6 +140,26 @@ class PodcastAudioController(
         progressJob?.cancel()
     }
 
+    private fun startStatusPolling(podcastId: String, episodeId: String) {
+        statusPollJob?.cancel()
+        statusPollJob = scope.launch {
+            while (isActive) {
+                try {
+                    val status = episodeRepository.getEpisodeStatus(podcastId, episodeId)
+                    _generatedAudioSeconds.value = status.generatedAudioSeconds
+                    if (status.status.equals("ready", ignoreCase = true) ||
+                        status.status.equals("failed", ignoreCase = true)
+                    ) {
+                        break
+                    }
+                } catch (e: Exception) {
+                    // Keep polling despite transient network errors
+                }
+                delay(3000)
+            }
+        }
+    }
+
     fun playEpisode(
         podcastId: String,
         podcastTitle: String,
@@ -148,6 +178,10 @@ class PodcastAudioController(
 
         _currentEpisode.value = episode
         _currentPodcastTitle.value = podcastTitle
+        currentPodcastId = podcastId
+        currentIdToken = idToken
+        _generatedAudioSeconds.value = null
+        startStatusPolling(podcastId, episode.id)
 
         val savedPosMs = if (forceFromBeginning) 0L else playbackPositionRepository.getPositionMs(episode.id)
         val shouldResume = savedPosMs >= 3000L
@@ -198,16 +232,53 @@ class PodcastAudioController(
             _currentEpisode.value?.let { ep ->
                 playbackPositionRepository.savePositionMs(ep.id, positionMs)
             }
+        } else {
+            // Duration isn't known yet (still generating): the stream can't be seeked
+            // directly, so restart it from the target offset via the `?t=` param instead.
+            // Only valid up to how much audio has actually been generated so far.
+            val generatedMs = ((_generatedAudioSeconds.value ?: 0.0) * 1000).toLong()
+            if (generatedMs <= 0L) return
+            restartAtPositionMs(positionMs.coerceIn(0L, generatedMs))
         }
+    }
+
+    private fun restartAtPositionMs(positionMs: Long) {
+        val player = mediaController ?: return
+        val episode = _currentEpisode.value ?: return
+        val podcastId = currentPodcastId ?: return
+        val wasPlaying = player.isPlaying
+
+        streamStartOffsetMs = positionMs
+        _currentPositionMs.value = positionMs
+        playbackPositionRepository.savePositionMs(episode.id, positionMs)
+
+        val streamUrl = ApiClient.buildAudioStreamUrl(
+            podcastId = podcastId,
+            episodeId = episode.id,
+            idToken = currentIdToken,
+            timeSeconds = positionMs / 1000.0
+        )
+        val mediaItem = MediaItem.Builder()
+            .setUri(streamUrl)
+            .setMediaMetadata(player.mediaMetadata)
+            .build()
+
+        player.setMediaItem(mediaItem)
+        player.prepare()
+        if (wasPlaying) player.play()
     }
 
     fun seekRelative(offsetSeconds: Int) {
         val player = mediaController ?: return
         val duration = player.duration
-        if (player.isCurrentMediaItemSeekable && duration > 0) {
-            val targetMs = (_currentPositionMs.value + (offsetSeconds * 1000L)).coerceIn(0L, duration)
-            seekTo(targetMs)
+        val upperBoundMs = if (player.isCurrentMediaItemSeekable && duration > 0) {
+            duration
+        } else {
+            ((_generatedAudioSeconds.value ?: 0.0) * 1000).toLong()
         }
+        if (upperBoundMs <= 0L) return
+        val targetMs = (_currentPositionMs.value + (offsetSeconds * 1000L)).coerceIn(0L, upperBoundMs)
+        seekTo(targetMs)
     }
 
     fun setPlaybackSpeed(speed: Float) {
@@ -220,6 +291,7 @@ class PodcastAudioController(
             playbackPositionRepository.savePositionMs(ep.id, _currentPositionMs.value)
         }
         stopProgressLoop()
+        statusPollJob?.cancel()
         controllerFuture?.let { MediaController.releaseFuture(it) }
     }
 }

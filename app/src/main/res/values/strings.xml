@@ -62,7 +62,7 @@
     <string name="wizard_option_desc_label">Description</string>
     <string name="wizard_option_structure_label">Show Structure</string>
     <string name="wizard_option_hosts_label">Hosts &amp; Voices</string>
-    <string name="wizard_option_predicted_changes">Creative Highlights</string>
+    <string name="wizard_option_predicted_changes">Suggested Revisions (tap to apply)</string>
     <string name="wizard_revise_title">Revise Concepts</string>
     <string name="wizard_revise_hint">e.g., Make the dialogue more casual, or change one host to an eccentric scientist</string>
     <string name="wizard_revise_target_all">Revise all 3 options</string>
@@ -82,11 +82,11 @@
     <string name="podcast_detail_new_episode_fab">New Episode</string>
     <string name="podcast_detail_add_source_button">Add Source</string>
     <string name="podcast_detail_no_episodes">No episodes created yet. Tap \'+\' to start an episode draft!</string>
-    <string name="podcast_detail_no_sources">No background sources uploaded. Sources help hosts reference real facts during discussions.</string>
+    <string name="podcast_detail_no_sources">No background sources yet. Sources are added while creating an episode.</string>
 
     <!-- Sources Screen -->
     <string name="sources_title">Background Sources</string>
-    <string name="sources_desc">Upload articles or paste texts that hosts will study and cite in their episodes.</string>
+    <string name="sources_desc">Sources are added while creating an episode — manage or remove them here.</string>
     <string name="sources_add_title">Add Source Material</string>
     <string name="sources_source_title_label">Source Title</string>
     <string name="sources_source_content_label">Text Content</string>
@@ -111,6 +111,10 @@
     <string name="episode_wizard_title">New Episode Wizard</string>
     <string name="episode_wizard_step_sources_title">1. Select Reference Sources</string>
     <string name="episode_wizard_step_sources_desc">Choose which sources this episode will cover. You can also provide an optional steering prompt.</string>
+    <string name="episode_wizard_select_all_sources">Select All</string>
+    <string name="episode_wizard_deselect_all_sources">Deselect All</string>
+    <string name="episode_wizard_no_sources_yet">No sources yet. Add one below to get started.</string>
+    <string name="episode_wizard_predicted_changes">Suggested Revisions (tap to apply)</string>
     <string name="episode_wizard_prompt_label">Episode Steering Prompt (Optional)</string>
     <string name="episode_wizard_prompt_hint">e.g., Focus on the controversy around product design, with a lively debate.</string>
     <string name="episode_wizard_generate_draft_button">Generate Episode Draft</string>
@@ -136,6 +140,7 @@
     <!-- Episode Detail & Status Screen -->
     <string name="episode_detail_title">Episode</string>
     <string name="episode_status_generating">Generating Conversation…</string>
+    <string name="episode_status_streamable">Streamable Now</string>
     <string name="episode_status_ready">Ready to Play</string>
     <string name="episode_status_failed">Generation Failed</string>
     <string name="episode_progress_stage">Stage: %1$s</string>
@@ -143,10 +148,12 @@
     <string name="episode_play_stream_button">Play Episode Stream</string>
     <string name="episode_resume_button">Resume Episode (%1$s)</string>
     <string name="episode_restart_button">Play from Beginning</string>
-    <string name="episode_live_stream_notice">Episode is generating live! Audio will stream as chunks are produced.</string>
+    <string name="episode_live_stream_notice">Episode is still generating — playback will be available once enough audio is ready.</string>
+    <string name="episode_streamable_notice">Episode is generating live! You can start listening now while the rest is produced.</string>
     <string name="episode_transcript_title">Conversation Transcript</string>
     <string name="episode_transcript_empty">Transcript will appear here once initial generation finishes.</string>
     <string name="episode_regenerate_button">Restart Generation</string>
+    <string name="episode_delete_confirm_title">Delete Episode</string>
     <string name="episode_delete_confirm">Delete episode \"%1$s\"?</string>
 
     <!-- Audio Player -->
@@ -159,6 +166,7 @@
     <string name="player_buffering">Buffering stream…</string>
     <string name="player_transcript_tab">Transcript</string>
     <string name="player_details_tab">Info</string>
+    <string name="player_generated_so_far">%1$s generated</string>
 
     <!-- Settings Screen -->
     <string name="settings_title">Settings</string>

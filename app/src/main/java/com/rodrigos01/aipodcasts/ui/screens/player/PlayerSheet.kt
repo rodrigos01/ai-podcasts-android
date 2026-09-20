@@ -63,6 +63,7 @@ fun PlayerSheet(
     val positionMs by audioController.currentPositionMs.collectAsState()
     val durationMs by audioController.durationMs.collectAsState()
     val playbackSpeed by audioController.playbackSpeed.collectAsState()
+    val generatedAudioSeconds by audioController.generatedAudioSeconds.collectAsState()
 
     var isUserSeeking by remember { androidx.compose.runtime.mutableStateOf(false) }
     var userSeekPosition by remember { mutableFloatStateOf(0f) }
@@ -125,10 +126,15 @@ fun PlayerSheet(
 
             // Scrubber Slider / Indeterminate Progress
             val isFullyGenerated = durationMs > 0
+            val generatedMs = ((generatedAudioSeconds ?: 0.0) * 1000).toLong()
+            // While still generating, scrubbing is limited to audio that already exists.
+            val scrubMaxMs = if (isFullyGenerated) durationMs else generatedMs
+            val canScrub = scrubMaxMs > 0L
 
-            if (isFullyGenerated) {
+            if (canScrub) {
                 Slider(
-                    value = if (isUserSeeking) userSeekPosition else positionMs.toFloat().coerceIn(0f, durationMs.toFloat()),
+                    value = (if (isUserSeeking) userSeekPosition else positionMs.toFloat())
+                        .coerceIn(0f, scrubMaxMs.toFloat()),
                     onValueChange = {
                         isUserSeeking = true
                         userSeekPosition = it
@@ -137,7 +143,7 @@ fun PlayerSheet(
                         audioController.seekTo(userSeekPosition.toLong())
                         isUserSeeking = false
                     },
-                    valueRange = 0f..durationMs.toFloat(),
+                    valueRange = 0f..scrubMaxMs.toFloat(),
                     modifier = Modifier.fillMaxWidth()
                 )
             } else {
@@ -158,12 +164,16 @@ fun PlayerSheet(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = formatTimeMs(if (isUserSeeking && isFullyGenerated) userSeekPosition.toLong() else positionMs),
+                    text = formatTimeMs(if (isUserSeeking && canScrub) userSeekPosition.toLong() else positionMs),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = if (isFullyGenerated) formatTimeMs(durationMs) else "--:--",
+                    text = when {
+                        isFullyGenerated -> formatTimeMs(durationMs)
+                        generatedMs > 0L -> stringResource(R.string.player_generated_so_far, formatTimeMs(generatedMs))
+                        else -> "--:--"
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -179,14 +189,14 @@ fun PlayerSheet(
             ) {
                 IconButton(
                     onClick = { audioController.seekRelative(-10) },
-                    enabled = isFullyGenerated,
+                    enabled = canScrub,
                     modifier = Modifier.size(52.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Replay10,
                         contentDescription = stringResource(R.string.player_rewind_10),
                         modifier = Modifier.size(36.dp),
-                        tint = if (isFullyGenerated) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        tint = if (canScrub) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                     )
                 }
 
@@ -219,14 +229,14 @@ fun PlayerSheet(
 
                 IconButton(
                     onClick = { audioController.seekRelative(30) },
-                    enabled = isFullyGenerated,
+                    enabled = canScrub,
                     modifier = Modifier.size(52.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Forward30,
                         contentDescription = stringResource(R.string.player_forward_30),
                         modifier = Modifier.size(36.dp),
-                        tint = if (isFullyGenerated) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        tint = if (canScrub) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                     )
                 }
             }

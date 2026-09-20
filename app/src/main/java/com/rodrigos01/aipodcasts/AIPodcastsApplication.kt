@@ -47,7 +47,7 @@ class AIPodcastsApplication : Application() {
         sourceRepository = SourceRepository()
         episodeRepository = EpisodeRepository()
         playbackPositionRepository = PlaybackPositionRepository(this)
-        audioController = PodcastAudioController(this, playbackPositionRepository)
+        audioController = PodcastAudioController(this, playbackPositionRepository, episodeRepository)
     }
 
     companion object {
