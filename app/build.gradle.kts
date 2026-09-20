@@ -1,3 +1,5 @@
+import java.io.ByteArrayOutputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -6,6 +8,24 @@ plugins {
     id("com.google.gms.google-services")
     id("com.google.firebase.appdistribution")
 }
+
+// Tag App Distribution builds with the commit they were built from: the short hash goes into
+// versionName (so a build in the Firebase console can be traced back to source), and the commit
+// message becomes the release notes testers see.
+fun gitOutput(vararg args: String): String = try {
+    val output = ByteArrayOutputStream()
+    exec {
+        commandLine(listOf("git") + args)
+        standardOutput = output
+        isIgnoreExitValue = true
+    }
+    output.toString().trim()
+} catch (e: Exception) {
+    ""
+}
+
+val gitShortHash = gitOutput("rev-parse", "--short", "HEAD").ifBlank { "unknown" }
+val gitCommitMessage = gitOutput("log", "-1", "--pretty=%B").trim().ifBlank { "No release notes available." }
 
 android {
     namespace = "com.rodrigos01.aipodcasts"
@@ -32,9 +52,11 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("debug")
+            versionNameSuffix = "-$gitShortHash"
             firebaseAppDistribution {
                 serviceCredentialsFile = "app/ai-audio-book-2c2ff064ff10.json"
                 groups = "devs"
+                releaseNotes = gitCommitMessage
             }
         }
         debug {
