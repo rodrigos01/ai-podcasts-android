@@ -44,16 +44,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rodrigos01.aipodcasts.R
+import com.rodrigos01.aipodcasts.data.model.Host
 import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.ui.components.EmptyState
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
+import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateToWizard: () -> Unit,
@@ -67,6 +69,30 @@ fun HomeScreen(
         viewModel.loadPodcasts()
     }
 
+    HomeScreen(
+        uiState = uiState,
+        onNavigateToWizard = onNavigateToWizard,
+        onNavigateToDetail = onNavigateToDetail,
+        onNavigateToSettings = onNavigateToSettings,
+        onRefresh = { viewModel.loadPodcasts() },
+        onDeletePodcast = { viewModel.promptDeletePodcast(it) },
+        onDismissDeleteDialog = { viewModel.dismissDeleteDialog() },
+        onConfirmDeletePodcast = { viewModel.confirmDeletePodcast() }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomeScreen(
+    uiState: HomeUiState,
+    onNavigateToWizard: () -> Unit,
+    onNavigateToDetail: (String) -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onRefresh: () -> Unit,
+    onDeletePodcast: (Podcast) -> Unit,
+    onDismissDeleteDialog: () -> Unit,
+    onConfirmDeletePodcast: () -> Unit
+) {
     Scaffold(
         topBar = {
             ExpressiveTopAppBar(
@@ -97,7 +123,7 @@ fun HomeScreen(
     ) { padding ->
         PullToRefreshBox(
             isRefreshing = uiState.isLoading,
-            onRefresh = { viewModel.loadPodcasts() },
+            onRefresh = onRefresh,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
@@ -130,7 +156,7 @@ fun HomeScreen(
                             PodcastCard(
                                 podcast = podcast,
                                 onClick = { onNavigateToDetail(podcast.id) },
-                                onDelete = { viewModel.promptDeletePodcast(podcast) }
+                                onDelete = { onDeletePodcast(podcast) }
                             )
                         }
                     }
@@ -139,19 +165,18 @@ fun HomeScreen(
         }
 
         // Delete Confirmation Dialog
-        if (uiState.podcastToDelete != null) {
-            val podcast = uiState.podcastToDelete!!
+        uiState.podcastToDelete?.let { podcast ->
             AlertDialog(
-                onDismissRequest = { viewModel.dismissDeleteDialog() },
+                onDismissRequest = onDismissDeleteDialog,
                 title = { Text(stringResource(R.string.home_podcast_delete_confirm_title)) },
                 text = { Text(stringResource(R.string.home_podcast_delete_confirm_message, podcast.title)) },
                 confirmButton = {
-                    TextButton(onClick = { viewModel.confirmDeletePodcast() }) {
+                    TextButton(onClick = onConfirmDeletePodcast) {
                         Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { viewModel.dismissDeleteDialog() }) {
+                    TextButton(onClick = onDismissDeleteDialog) {
                         Text(stringResource(R.string.action_cancel))
                     }
                 },
@@ -246,5 +271,61 @@ fun PodcastCard(
                 }
             }
         }
+    }
+}
+
+@Preview(showSystemUi = true, name = "Empty State")
+@Composable
+fun HomeScreenEmptyPreview() {
+    AIPodcastsTheme {
+        HomeScreen(
+            uiState = HomeUiState(),
+            onNavigateToWizard = {},
+            onNavigateToDetail = {},
+            onNavigateToSettings = {},
+            onRefresh = {},
+            onDeletePodcast = {},
+            onDismissDeleteDialog = {},
+            onConfirmDeletePodcast = {}
+        )
+    }
+}
+
+@Preview(showSystemUi = true, name = "Populated State")
+@Composable
+fun HomeScreenPopulatedPreview() {
+    val samplePodcasts = listOf(
+        Podcast(
+            id = "1",
+            title = "AI in the Real World",
+            description = "A deep dive into how AI is changing our daily lives, from healthcare to finance.",
+            structure = "Interview",
+            hosts = listOf(
+                Host(id = "h1", name = "Sarah Chen", voice = "Nova", persona = "Tech Expert"),
+                Host(id = "h2", name = "Mark Davis", voice = "Echo", persona = "Journalist")
+            )
+        ),
+        Podcast(
+            id = "2",
+            title = "Future Talk",
+            description = "Exploring the next century of human evolution and technology.",
+            structure = "Discussion",
+            hosts = listOf(
+                Host(id = "h3", name = "Elena Rodriguez", voice = "Shimmer", persona = "Futurist")
+            )
+        )
+    )
+
+    AIPodcastsTheme {
+        HomeScreen(
+            uiState = HomeUiState(podcasts = samplePodcasts),
+            onNavigateToWizard = {},
+            onNavigateToDetail = {},
+            onNavigateToSettings = {},
+            onRefresh = {},
+            onDeletePodcast = {},
+            onDismissDeleteDialog = {},
+            onConfirmDeletePodcast = {}
+        )
     }
 }

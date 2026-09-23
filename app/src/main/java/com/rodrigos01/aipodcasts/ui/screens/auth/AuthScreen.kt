@@ -41,9 +41,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -51,22 +55,20 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import kotlinx.coroutines.launch
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rodrigos01.aipodcasts.R
+import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
+import kotlinx.coroutines.launch
 
 @Composable
 fun AuthScreen(
@@ -74,7 +76,6 @@ fun AuthScreen(
     viewModel: AuthViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var passwordVisible by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val webClientId = "883622140264-bvabb03s21b4vq0hul9jlo73f7h4vj5l.apps.googleusercontent.com"
@@ -84,6 +85,60 @@ fun AuthScreen(
             onAuthenticated()
         }
     }
+
+    AuthScreen(
+        uiState = uiState,
+        onEmailChanged = { viewModel.onEmailChanged(it) },
+        onPasswordChanged = { viewModel.onPasswordChanged(it) },
+        onToggleMode = { viewModel.toggleMode() },
+        onSubmitEmailAuth = { viewModel.submitEmailAuth() },
+        onGoogleSignInClick = {
+            val credentialManager = CredentialManager.create(context)
+            val googleIdOption = GetGoogleIdOption.Builder()
+                .setFilterByAuthorizedAccounts(false)
+                .setServerClientId(webClientId)
+                .setAutoSelectEnabled(false)
+                .build()
+
+            val request = GetCredentialRequest.Builder()
+                .addCredentialOption(googleIdOption)
+                .build()
+
+            coroutineScope.launch {
+                try {
+                    val result = credentialManager.getCredential(
+                        request = request,
+                        context = context
+                    )
+                    val credential = result.credential
+                    if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                        val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                        viewModel.signInWithGoogle(googleIdTokenCredential.idToken)
+                    } else {
+                        viewModel.setErrorMessage("Unexpected credential type: ${credential::class.java.simpleName}")
+                    }
+                } catch (e: GetCredentialCancellationException) {
+                    // User cancelled Google sign-in dialog, do nothing
+                } catch (e: GetCredentialException) {
+                    viewModel.setErrorMessage(e.localizedMessage ?: e.message)
+                } catch (e: Exception) {
+                    viewModel.setErrorMessage(e.localizedMessage ?: e.message)
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun AuthScreen(
+    uiState: AuthUiState,
+    onEmailChanged: (String) -> Unit,
+    onPasswordChanged: (String) -> Unit,
+    onToggleMode: () -> Unit,
+    onSubmitEmailAuth: () -> Unit,
+    onGoogleSignInClick: () -> Unit
+) {
+    var passwordVisible by remember { mutableStateOf(false) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -137,40 +192,7 @@ fun AuthScreen(
 
             // Google Sign In Button
             OutlinedButton(
-                onClick = {
-                    val credentialManager = CredentialManager.create(context)
-                    val googleIdOption = GetGoogleIdOption.Builder()
-                        .setFilterByAuthorizedAccounts(false)
-                        .setServerClientId(webClientId)
-                        .setAutoSelectEnabled(false)
-                        .build()
-
-                    val request = GetCredentialRequest.Builder()
-                        .addCredentialOption(googleIdOption)
-                        .build()
-
-                    coroutineScope.launch {
-                        try {
-                            val result = credentialManager.getCredential(
-                                request = request,
-                                context = context
-                            )
-                            val credential = result.credential
-                            if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-                                val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                                viewModel.signInWithGoogle(googleIdTokenCredential.idToken)
-                            } else {
-                                viewModel.setErrorMessage("Unexpected credential type: ${credential::class.java.simpleName}")
-                            }
-                        } catch (e: GetCredentialCancellationException) {
-                            // User cancelled Google sign-in dialog, do nothing
-                        } catch (e: GetCredentialException) {
-                            viewModel.setErrorMessage(e.localizedMessage ?: e.message)
-                        } catch (e: Exception) {
-                            viewModel.setErrorMessage(e.localizedMessage ?: e.message)
-                        }
-                    }
-                },
+                onClick = onGoogleSignInClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
@@ -228,7 +250,7 @@ fun AuthScreen(
             // Email Field
             OutlinedTextField(
                 value = uiState.email,
-                onValueChange = { viewModel.onEmailChanged(it) },
+                onValueChange = onEmailChanged,
                 label = { Text(stringResource(R.string.auth_email_label)) },
                 leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
@@ -243,7 +265,7 @@ fun AuthScreen(
             // Password Field
             OutlinedTextField(
                 value = uiState.password,
-                onValueChange = { viewModel.onPasswordChanged(it) },
+                onValueChange = onPasswordChanged,
                 label = { Text(stringResource(R.string.auth_password_label)) },
                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
                 trailingIcon = {
@@ -256,17 +278,17 @@ fun AuthScreen(
                 },
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { viewModel.submitEmailAuth() }),
+                keyboardActions = KeyboardActions(onDone = { onSubmitEmailAuth() }),
                 modifier = Modifier.fillMaxWidth(),
                 shape = ExpressiveShapes.small,
                 singleLine = true,
                 enabled = !uiState.isLoading
             )
 
-            if (uiState.errorMessage != null) {
+            uiState.errorMessage?.let { error ->
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = stringResource(R.string.auth_error_failed, uiState.errorMessage ?: ""),
+                    text = stringResource(R.string.auth_error_failed, error),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center
@@ -277,7 +299,7 @@ fun AuthScreen(
 
             // Email Submit Button
             Button(
-                onClick = { viewModel.submitEmailAuth() },
+                onClick = onSubmitEmailAuth,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
@@ -306,7 +328,7 @@ fun AuthScreen(
 
             // Toggle mode
             TextButton(
-                onClick = { viewModel.toggleMode() },
+                onClick = onToggleMode,
                 enabled = !uiState.isLoading
             ) {
                 Text(
@@ -319,5 +341,35 @@ fun AuthScreen(
                 )
             }
         }
+    }
+}
+
+@Preview(showSystemUi = true, name = "Auth - Sign In")
+@Composable
+fun AuthSignInPreview() {
+    AIPodcastsTheme {
+        AuthScreen(
+            uiState = AuthUiState(isSignUpMode = false),
+            onEmailChanged = {},
+            onPasswordChanged = {},
+            onToggleMode = {},
+            onSubmitEmailAuth = {},
+            onGoogleSignInClick = {}
+        )
+    }
+}
+
+@Preview(showSystemUi = true, name = "Auth - Sign Up")
+@Composable
+fun AuthSignUpPreview() {
+    AIPodcastsTheme {
+        AuthScreen(
+            uiState = AuthUiState(isSignUpMode = true),
+            onEmailChanged = {},
+            onPasswordChanged = {},
+            onToggleMode = {},
+            onSubmitEmailAuth = {},
+            onGoogleSignInClick = {}
+        )
     }
 }

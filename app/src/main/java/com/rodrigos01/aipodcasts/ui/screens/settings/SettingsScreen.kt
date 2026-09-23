@@ -39,11 +39,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rodrigos01.aipodcasts.R
 import com.rodrigos01.aipodcasts.data.api.ApiClient
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
+import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 import com.rodrigos01.aipodcasts.ui.theme.ReadyGreen
 
@@ -55,6 +57,31 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
+    SettingsScreen(
+        uiState = uiState,
+        onNavigateBack = onNavigateBack,
+        onBaseUrlChanged = {
+            viewModel.onBaseUrlChanged(it)
+            viewModel.saveBaseUrl(it)
+        },
+        onTestBackendConnection = { viewModel.testBackendConnection() },
+        onThemeModeSelected = { viewModel.setThemeMode(it) },
+        onSignOut = {
+            viewModel.signOut()
+            onSignedOut()
+        }
+    )
+}
+
+@Composable
+private fun SettingsScreen(
+    uiState: SettingsUiState,
+    onNavigateBack: () -> Unit,
+    onBaseUrlChanged: (String) -> Unit,
+    onTestBackendConnection: () -> Unit,
+    onThemeModeSelected: (String) -> Unit,
+    onSignOut: () -> Unit
+) {
     Scaffold(
         topBar = {
             ExpressiveTopAppBar(
@@ -93,10 +120,7 @@ fun SettingsScreen(
 
                     OutlinedTextField(
                         value = uiState.baseUrl,
-                        onValueChange = {
-                            viewModel.onBaseUrlChanged(it)
-                            viewModel.saveBaseUrl(it)
-                        },
+                        onValueChange = onBaseUrlChanged,
                         label = { Text(stringResource(R.string.settings_server_url_label)) },
                         placeholder = { Text(stringResource(R.string.settings_server_url_hint)) },
                         modifier = Modifier.fillMaxWidth(),
@@ -112,19 +136,13 @@ fun SettingsScreen(
                     ) {
                         FilterChip(
                             selected = uiState.baseUrl == ApiClient.DEFAULT_BASE_URL,
-                            onClick = {
-                                viewModel.onBaseUrlChanged(ApiClient.DEFAULT_BASE_URL)
-                                viewModel.saveBaseUrl(ApiClient.DEFAULT_BASE_URL)
-                            },
+                            onClick = { onBaseUrlChanged(ApiClient.DEFAULT_BASE_URL) },
                             label = { Text(stringResource(R.string.settings_server_preset_cloud_run)) },
                             shape = ExpressiveShapes.extraSmall
                         )
                         FilterChip(
                             selected = uiState.baseUrl == ApiClient.EMULATOR_LOCAL_BASE_URL,
-                            onClick = {
-                                viewModel.onBaseUrlChanged(ApiClient.EMULATOR_LOCAL_BASE_URL)
-                                viewModel.saveBaseUrl(ApiClient.EMULATOR_LOCAL_BASE_URL)
-                            },
+                            onClick = { onBaseUrlChanged(ApiClient.EMULATOR_LOCAL_BASE_URL) },
                             label = { Text(stringResource(R.string.settings_server_preset_emulator)) },
                             shape = ExpressiveShapes.extraSmall
                         )
@@ -133,7 +151,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     OutlinedButton(
-                        onClick = { viewModel.testBackendConnection() },
+                        onClick = onTestBackendConnection,
                         modifier = Modifier.fillMaxWidth(),
                         shape = ExpressiveShapes.small,
                         enabled = !uiState.isTestingConnection
@@ -202,12 +220,12 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { viewModel.setThemeMode(mode) }
+                                .clickable { onThemeModeSelected(mode) }
                                 .padding(vertical = 6.dp)
                         ) {
                             RadioButton(
                                 selected = uiState.themeMode == mode,
-                                onClick = { viewModel.setThemeMode(mode) }
+                                onClick = { onThemeModeSelected(mode) }
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(text = stringResource(labelRes), style = MaterialTheme.typography.bodyMedium)
@@ -252,10 +270,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
-                        onClick = {
-                            viewModel.signOut()
-                            onSignedOut()
-                        },
+                        onClick = onSignOut,
                         modifier = Modifier.fillMaxWidth(),
                         shape = ExpressiveShapes.small
                     ) {
@@ -291,5 +306,23 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+@Preview(showSystemUi = true)
+@Composable
+fun SettingsScreenPreview() {
+    AIPodcastsTheme {
+        SettingsScreen(
+            uiState = SettingsUiState(
+                baseUrl = "https://api.example.com",
+                themeMode = "dark"
+            ),
+            onNavigateBack = {},
+            onBaseUrlChanged = {},
+            onTestBackendConnection = {},
+            onThemeModeSelected = {},
+            onSignOut = {}
+        )
     }
 }

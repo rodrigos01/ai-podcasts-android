@@ -28,6 +28,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,16 +48,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rodrigos01.aipodcasts.R
 import com.rodrigos01.aipodcasts.data.model.Episode
 import com.rodrigos01.aipodcasts.data.model.Host
+import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.data.model.Source
 import com.rodrigos01.aipodcasts.ui.components.EmptyState
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
 import com.rodrigos01.aipodcasts.ui.components.StatusBadge
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
+import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 
 @Composable
@@ -73,6 +77,32 @@ fun PodcastDetailScreen(
         viewModel.loadPodcast(podcastId)
     }
 
+    PodcastDetailScreen(
+        uiState = uiState,
+        onNavigateBack = onNavigateBack,
+        onNavigateToEpisodeWizard = { onNavigateToEpisodeWizard(podcastId) },
+        onNavigateToEpisodeDetail = { episodeId -> onNavigateToEpisodeDetail(podcastId, episodeId) },
+        onTabSelected = { viewModel.selectTab(it) },
+        onDeleteSource = { sourceId -> viewModel.deleteSource(podcastId, sourceId) },
+        onPromptDeleteEpisode = { viewModel.promptDeleteEpisode(it) },
+        onDismissDeleteEpisodeDialog = { viewModel.dismissDeleteEpisodeDialog() },
+        onConfirmDeleteEpisode = { viewModel.confirmDeleteEpisode(podcastId) }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PodcastDetailScreen(
+    uiState: PodcastDetailUiState,
+    onNavigateBack: () -> Unit,
+    onNavigateToEpisodeWizard: () -> Unit,
+    onNavigateToEpisodeDetail: (String) -> Unit,
+    onTabSelected: (Int) -> Unit,
+    onDeleteSource: (String) -> Unit,
+    onPromptDeleteEpisode: (Episode) -> Unit,
+    onDismissDeleteEpisodeDialog: () -> Unit,
+    onConfirmDeleteEpisode: () -> Unit
+) {
     Scaffold(
         topBar = {
             ExpressiveTopAppBar(
@@ -84,7 +114,7 @@ fun PodcastDetailScreen(
         floatingActionButton = {
             if (uiState.selectedTab == 0) {
                 FloatingActionButton(
-                    onClick = { onNavigateToEpisodeWizard(podcastId) },
+                    onClick = onNavigateToEpisodeWizard,
                     shape = ExpressiveShapes.medium,
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
@@ -115,7 +145,7 @@ fun PodcastDetailScreen(
                 tabs.forEachIndexed { index, label ->
                     Tab(
                         selected = uiState.selectedTab == index,
-                        onClick = { viewModel.selectTab(index) },
+                        onClick = { onTabSelected(index) },
                         text = {
                             Text(
                                 text = label,
@@ -140,7 +170,7 @@ fun PodcastDetailScreen(
                             title = stringResource(R.string.podcast_detail_no_episodes),
                             description = "",
                             actionButtonText = stringResource(R.string.podcast_detail_new_episode_fab),
-                            onActionClick = { onNavigateToEpisodeWizard(podcastId) }
+                            onActionClick = onNavigateToEpisodeWizard
                         )
                     } else {
                         LazyColumn(
@@ -151,8 +181,8 @@ fun PodcastDetailScreen(
                             items(uiState.episodes, key = { it.id }) { episode ->
                                 EpisodeItemCard(
                                     episode = episode,
-                                    onClick = { onNavigateToEpisodeDetail(podcastId, episode.id) },
-                                    onDelete = { viewModel.promptDeleteEpisode(episode) }
+                                    onClick = { onNavigateToEpisodeDetail(episode.id) },
+                                    onDelete = { onPromptDeleteEpisode(episode) }
                                 )
                             }
                         }
@@ -190,7 +220,7 @@ fun PodcastDetailScreen(
                                 items(uiState.sources, key = { it.id }) { source ->
                                     SourceItemCard(
                                         source = source,
-                                        onDelete = { viewModel.deleteSource(podcastId, source.id) }
+                                        onDelete = { onDeleteSource(source.id) }
                                     )
                                 }
                             }
@@ -253,19 +283,18 @@ fun PodcastDetailScreen(
             }
         }
 
-        if (uiState.episodeToDelete != null) {
-            val episode = uiState.episodeToDelete!!
+        uiState.episodeToDelete?.let { episode ->
             AlertDialog(
-                onDismissRequest = { viewModel.dismissDeleteEpisodeDialog() },
+                onDismissRequest = onDismissDeleteEpisodeDialog,
                 title = { Text(stringResource(R.string.episode_delete_confirm_title)) },
                 text = { Text(stringResource(R.string.episode_delete_confirm, episode.title)) },
                 confirmButton = {
-                    TextButton(onClick = { viewModel.confirmDeleteEpisode(podcastId) }) {
+                    TextButton(onClick = onConfirmDeleteEpisode) {
                         Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { viewModel.dismissDeleteEpisodeDialog() }) {
+                    TextButton(onClick = onDismissDeleteEpisodeDialog) {
                         Text(stringResource(R.string.action_cancel))
                     }
                 },
@@ -442,5 +471,67 @@ fun HostDetailCard(host: Host) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+@Preview(showSystemUi = true, name = "Podcast Detail - Episodes")
+@Composable
+fun PodcastDetailEpisodesPreview() {
+    val samplePodcast = Podcast(
+        id = "1",
+        title = "AI in the Real World",
+        description = "A deep dive into how AI is changing our daily lives.",
+        structure = "Interview style",
+        hosts = listOf(Host(id = "h1", name = "Sarah Chen", voice = "Nova", persona = "Tech Expert"))
+    )
+    val sampleEpisodes = listOf(
+        Episode(id = "e1", title = "The Future of Medicine", status = "completed", length = "medium", topics = "Health tech, AI diagnostics"),
+        Episode(id = "e2", title = "AI in Finance", status = "generating", length = "short", topics = "Stock market, algorithmic trading")
+    )
+
+    AIPodcastsTheme {
+        PodcastDetailScreen(
+            uiState = PodcastDetailUiState(
+                podcast = samplePodcast,
+                episodes = sampleEpisodes,
+                selectedTab = 0
+            ),
+            onNavigateBack = {},
+            onNavigateToEpisodeWizard = {},
+            onNavigateToEpisodeDetail = {},
+            onTabSelected = {},
+            onDeleteSource = {},
+            onPromptDeleteEpisode = {},
+            onDismissDeleteEpisodeDialog = {},
+            onConfirmDeleteEpisode = {}
+        )
+    }
+}
+
+@Preview(showSystemUi = true, name = "Podcast Detail - Sources")
+@Composable
+fun PodcastDetailSourcesPreview() {
+    val samplePodcast = Podcast(id = "1", title = "AI in the Real World", description = "", structure = "")
+    val sampleSources = listOf(
+        Source(id = "s1", title = "Medical Journal Article", contents = "Content summary..."),
+        Source(id = "s2", title = "Finance Report 2023", contents = "Market data...")
+    )
+
+    AIPodcastsTheme {
+        PodcastDetailScreen(
+            uiState = PodcastDetailUiState(
+                podcast = samplePodcast,
+                sources = sampleSources,
+                selectedTab = 1
+            ),
+            onNavigateBack = {},
+            onNavigateToEpisodeWizard = {},
+            onNavigateToEpisodeDetail = {},
+            onTabSelected = {},
+            onDeleteSource = {},
+            onPromptDeleteEpisode = {},
+            onDismissDeleteEpisodeDialog = {},
+            onConfirmDeleteEpisode = {}
+        )
     }
 }

@@ -1,10 +1,7 @@
 package com.rodrigos01.aipodcasts.ui.screens.wizard
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,17 +17,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,12 +37,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rodrigos01.aipodcasts.R
+import com.rodrigos01.aipodcasts.data.model.Host
 import com.rodrigos01.aipodcasts.data.model.PodcastOption
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
+import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 
 @Composable
@@ -63,6 +62,34 @@ fun PodcastWizardScreen(
         }
     }
 
+    PodcastWizardScreen(
+        uiState = uiState,
+        onNavigateBack = onNavigateBack,
+        onPromptChanged = { viewModel.onPromptChanged(it) },
+        onSourceMaterialChanged = { viewModel.onSourceMaterialChanged(it) },
+        onGenerateOptions = { viewModel.generateOptions() },
+        onSelectOption = { viewModel.onSelectOption(it) },
+        onRevisionInstructionChanged = { viewModel.onRevisionInstructionChanged(it) },
+        onReviseTargetChanged = { viewModel.onReviseTargetChanged(it) },
+        onApplyRevision = { viewModel.applyRevision(it) },
+        onConfirmAndCreate = { viewModel.confirmAndCreatePodcast() }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PodcastWizardScreen(
+    uiState: PodcastWizardUiState,
+    onNavigateBack: () -> Unit,
+    onPromptChanged: (String) -> Unit,
+    onSourceMaterialChanged: (String) -> Unit,
+    onGenerateOptions: () -> Unit,
+    onSelectOption: (Int) -> Unit,
+    onRevisionInstructionChanged: (String) -> Unit,
+    onReviseTargetChanged: (Boolean) -> Unit,
+    onApplyRevision: (String?) -> Unit,
+    onConfirmAndCreate: () -> Unit
+) {
     Scaffold(
         topBar = {
             ExpressiveTopAppBar(
@@ -97,7 +124,7 @@ fun PodcastWizardScreen(
 
                 OutlinedTextField(
                     value = uiState.prompt,
-                    onValueChange = { viewModel.onPromptChanged(it) },
+                    onValueChange = onPromptChanged,
                     label = { Text(stringResource(R.string.wizard_prompt_label)) },
                     placeholder = { Text(stringResource(R.string.wizard_prompt_hint)) },
                     modifier = Modifier
@@ -111,7 +138,7 @@ fun PodcastWizardScreen(
 
                 OutlinedTextField(
                     value = uiState.sourceMaterial,
-                    onValueChange = { viewModel.onSourceMaterialChanged(it) },
+                    onValueChange = onSourceMaterialChanged,
                     label = { Text(stringResource(R.string.wizard_source_material_label)) },
                     placeholder = { Text(stringResource(R.string.wizard_source_material_hint)) },
                     modifier = Modifier
@@ -133,7 +160,7 @@ fun PodcastWizardScreen(
                 Spacer(modifier = Modifier.height(28.dp))
 
                 Button(
-                    onClick = { viewModel.generateOptions() },
+                    onClick = onGenerateOptions,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -183,7 +210,7 @@ fun PodcastWizardScreen(
                         val isSelected = (index == uiState.selectedOptionIndex)
                         FilterChip(
                             selected = isSelected,
-                            onClick = { viewModel.onSelectOption(index) },
+                            onClick = { onSelectOption(index) },
                             label = {
                                 Text(
                                     text = stringResource(R.string.wizard_option_badge, index + 1),
@@ -204,7 +231,7 @@ fun PodcastWizardScreen(
                     OptionDetailCard(
                         option = activeOption,
                         isRevising = uiState.isRevising,
-                        onApplyPredictedChange = { change -> viewModel.applyRevision(instructionOverride = change) }
+                        onApplyPredictedChange = { change -> onApplyRevision(change) }
                     )
                 }
 
@@ -229,7 +256,7 @@ fun PodcastWizardScreen(
 
                         OutlinedTextField(
                             value = uiState.revisionInstruction,
-                            onValueChange = { viewModel.onRevisionInstructionChanged(it) },
+                            onValueChange = onRevisionInstructionChanged,
                             placeholder = { Text(stringResource(R.string.wizard_revise_hint)) },
                             modifier = Modifier.fillMaxWidth(),
                             shape = ExpressiveShapes.small,
@@ -244,14 +271,14 @@ fun PodcastWizardScreen(
                         ) {
                             FilterChip(
                                 selected = uiState.reviseTargetSelectedOnly,
-                                onClick = { viewModel.onReviseTargetChanged(true) },
+                                onClick = { onReviseTargetChanged(true) },
                                 label = { Text(stringResource(R.string.wizard_revise_target_selected)) },
                                 shape = ExpressiveShapes.extraSmall
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             FilterChip(
                                 selected = !uiState.reviseTargetSelectedOnly,
-                                onClick = { viewModel.onReviseTargetChanged(false) },
+                                onClick = { onReviseTargetChanged(false) },
                                 label = { Text(stringResource(R.string.wizard_revise_target_all)) },
                                 shape = ExpressiveShapes.extraSmall
                             )
@@ -260,7 +287,7 @@ fun PodcastWizardScreen(
                         Spacer(modifier = Modifier.height(12.dp))
 
                         OutlinedButton(
-                            onClick = { viewModel.applyRevision() },
+                            onClick = { onApplyRevision(null) },
                             modifier = Modifier.fillMaxWidth(),
                             shape = ExpressiveShapes.small,
                             enabled = uiState.revisionInstruction.isNotBlank() && !uiState.isRevising && !uiState.isCreating
@@ -291,7 +318,7 @@ fun PodcastWizardScreen(
 
                 // Confirm and Create
                 Button(
-                    onClick = { viewModel.confirmAndCreatePodcast() },
+                    onClick = onConfirmAndCreate,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -413,5 +440,63 @@ fun OptionDetailCard(
                 }
             }
         }
+    }
+}
+
+@Preview(showSystemUi = true, name = "Step 1: Input")
+@Composable
+fun PodcastWizardStep1Preview() {
+    AIPodcastsTheme {
+        PodcastWizardScreen(
+            uiState = PodcastWizardUiState(step = 1),
+            onNavigateBack = {},
+            onPromptChanged = {},
+            onSourceMaterialChanged = {},
+            onGenerateOptions = {},
+            onSelectOption = {},
+            onRevisionInstructionChanged = {},
+            onReviseTargetChanged = {},
+            onApplyRevision = {},
+            onConfirmAndCreate = {}
+        )
+    }
+}
+
+@Preview(showSystemUi = true, name = "Step 2: Choose Concept")
+@Composable
+fun PodcastWizardStep2Preview() {
+    val sampleOptions = listOf(
+        PodcastOption(
+            title = "Tech Talk AI",
+            description = "A podcast exploring the intersection of AI and humanity.",
+            structure = "Dialogue",
+            hosts = listOf(Host(name = "Host 1", voice = "Alloy", persona = "Tech Expert")),
+            predictedChanges = listOf("Make it more casual", "Add another host")
+        ),
+        PodcastOption(
+            title = "Future Insights",
+            description = "Weekly discussions on the future of technology.",
+            structure = "Solo",
+            hosts = listOf(Host(name = "Futurist", voice = "Echo", persona = "Expert"))
+        )
+    )
+
+    AIPodcastsTheme {
+        PodcastWizardScreen(
+            uiState = PodcastWizardUiState(
+                step = 2,
+                options = sampleOptions,
+                selectedOptionIndex = 0
+            ),
+            onNavigateBack = {},
+            onPromptChanged = {},
+            onSourceMaterialChanged = {},
+            onGenerateOptions = {},
+            onSelectOption = {},
+            onRevisionInstructionChanged = {},
+            onReviseTargetChanged = {},
+            onApplyRevision = {},
+            onConfirmAndCreate = {}
+        )
     }
 }

@@ -1,6 +1,5 @@
 package com.rodrigos01.aipodcasts.ui.screens.episode
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Pause
@@ -31,7 +29,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,14 +39,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.util.UnstableApi
 import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.R
+import com.rodrigos01.aipodcasts.data.model.Episode
+import com.rodrigos01.aipodcasts.data.model.EpisodeGuest
+import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
 import com.rodrigos01.aipodcasts.ui.components.StatusBadge
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
+import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 
 @UnstableApi
@@ -66,11 +68,6 @@ fun EpisodeDetailScreen(
     val activePositionMs by audioController.currentPositionMs.collectAsState()
     val isPlaying by audioController.isPlaying.collectAsState()
 
-    val isCurrentActiveEpisode = activeEpisode?.id == episodeId
-    val currentPosition = if (isCurrentActiveEpisode) activePositionMs else uiState.savedPositionMs
-    val hasSavedProgress = currentPosition >= 3000L
-    val formattedSavedTime = formatTimeMs(currentPosition)
-
     LaunchedEffect(podcastId, episodeId) {
         viewModel.loadEpisode(podcastId, episodeId)
         viewModel.refreshSavedPosition()
@@ -82,6 +79,39 @@ fun EpisodeDetailScreen(
         }
     }
 
+    EpisodeDetailScreen(
+        uiState = uiState,
+        activeEpisodeId = activeEpisode?.id,
+        activePositionMs = activePositionMs,
+        isPlaying = isPlaying,
+        onNavigateBack = onNavigateBack,
+        onDeleteClick = { viewModel.promptDelete() },
+        onPlayAudio = { forceRestart -> viewModel.playAudio(forceRestart) },
+        onRegenerate = { viewModel.regenerate(podcastId, episodeId) },
+        onConfirmDelete = { viewModel.confirmDelete(podcastId, episodeId) },
+        onDismissDelete = { viewModel.dismissDeleteConfirm() }
+    )
+}
+
+@UnstableApi
+@Composable
+private fun EpisodeDetailScreen(
+    uiState: EpisodeDetailUiState,
+    activeEpisodeId: String?,
+    activePositionMs: Long,
+    isPlaying: Boolean,
+    onNavigateBack: () -> Unit,
+    onDeleteClick: () -> Unit,
+    onPlayAudio: (Boolean) -> Unit,
+    onRegenerate: () -> Unit,
+    onConfirmDelete: () -> Unit,
+    onDismissDelete: () -> Unit
+) {
+    val isCurrentActiveEpisode = activeEpisodeId == uiState.episode?.id
+    val currentPosition = if (isCurrentActiveEpisode) activePositionMs else uiState.savedPositionMs
+    val hasSavedProgress = currentPosition >= 3000L
+    val formattedSavedTime = formatTimeMs(currentPosition)
+
     Scaffold(
         topBar = {
             ExpressiveTopAppBar(
@@ -90,7 +120,7 @@ fun EpisodeDetailScreen(
                 onNavigateBack = onNavigateBack,
                 actions = {
                     if (uiState.episode != null) {
-                        IconButton(onClick = { viewModel.promptDelete() }) {
+                        IconButton(onClick = onDeleteClick) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
                                 contentDescription = stringResource(R.string.action_delete)
@@ -120,7 +150,6 @@ fun EpisodeDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 item {
-                    // Header with Status and Play button
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = ExpressiveShapes.medium,
@@ -153,7 +182,6 @@ fun EpisodeDetailScreen(
                                 )
                             }
 
-                            // Progress indicator while generating or streamable (generation still running either way)
                             val isStillGenerating = uiState.status.equals("generating", ignoreCase = true)
                             val isStreamable = uiState.status.equals("streamable", ignoreCase = true)
                             val canPlay = isStreamable || uiState.status.equals("ready", ignoreCase = true)
@@ -197,9 +225,8 @@ fun EpisodeDetailScreen(
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // Play / Resume button
                             Button(
-                                onClick = { viewModel.playAudio(forceFromBeginning = false) },
+                                onClick = { onPlayAudio(false) },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp),
@@ -225,7 +252,7 @@ fun EpisodeDetailScreen(
                             if (hasSavedProgress && !(isCurrentActiveEpisode && isPlaying)) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 OutlinedButton(
-                                    onClick = { viewModel.playAudio(forceFromBeginning = true) },
+                                    onClick = { onPlayAudio(true) },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(44.dp),
@@ -241,11 +268,10 @@ fun EpisodeDetailScreen(
                                 }
                             }
 
-                            // Regenerate button if failed
                             if (uiState.status.equals("failed", ignoreCase = true)) {
                                 Spacer(modifier = Modifier.height(10.dp))
                                 OutlinedButton(
-                                    onClick = { viewModel.regenerate(podcastId, episodeId) },
+                                    onClick = onRegenerate,
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = ExpressiveShapes.small,
                                     enabled = !uiState.isRegenerating
@@ -263,7 +289,6 @@ fun EpisodeDetailScreen(
                     }
                 }
 
-                // Speaker chips
                 item {
                     Column {
                         Text(
@@ -283,7 +308,6 @@ fun EpisodeDetailScreen(
                     }
                 }
 
-                // Transcript Section
                 item {
                     Text(
                         text = stringResource(R.string.episode_transcript_title),
@@ -331,12 +355,12 @@ fun EpisodeDetailScreen(
         if (uiState.showDeleteConfirm) {
             val title = uiState.episode?.title ?: ""
             AlertDialog(
-                onDismissRequest = { if (!uiState.isDeleting) viewModel.dismissDeleteConfirm() },
+                onDismissRequest = { if (!uiState.isDeleting) onDismissDelete() },
                 title = { Text(stringResource(R.string.episode_delete_confirm_title)) },
                 text = { Text(stringResource(R.string.episode_delete_confirm, title)) },
                 confirmButton = {
                     TextButton(
-                        onClick = { viewModel.confirmDelete(podcastId, episodeId) },
+                        onClick = onConfirmDelete,
                         enabled = !uiState.isDeleting
                     ) {
                         Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
@@ -344,7 +368,7 @@ fun EpisodeDetailScreen(
                 },
                 dismissButton = {
                     TextButton(
-                        onClick = { viewModel.dismissDeleteConfirm() },
+                        onClick = onDismissDelete,
                         enabled = !uiState.isDeleting
                     ) {
                         Text(stringResource(R.string.action_cancel))
@@ -361,4 +385,63 @@ private fun formatTimeMs(ms: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%02d:%02d".format(minutes, seconds)
+}
+
+@UnstableApi
+@Preview(showSystemUi = true, name = "Episode Ready")
+@Composable
+fun EpisodeDetailReadyPreview() {
+    val sampleEpisode = Episode(
+        id = "e1",
+        title = "The Future of Medicine",
+        status = "ready",
+        topics = "Health tech, AI diagnostics",
+        guests = listOf(EpisodeGuest(name = "Dr. Smith", voice = "Echo", persona = "MD"))
+    )
+
+    AIPodcastsTheme {
+        EpisodeDetailScreen(
+            uiState = EpisodeDetailUiState(episode = sampleEpisode, status = "ready"),
+            activeEpisodeId = null,
+            activePositionMs = 0L,
+            isPlaying = false,
+            onNavigateBack = {},
+            onDeleteClick = {},
+            onPlayAudio = {},
+            onRegenerate = {},
+            onConfirmDelete = {},
+            onDismissDelete = {}
+        )
+    }
+}
+
+@UnstableApi
+@Preview(showSystemUi = true, name = "Episode Generating")
+@Composable
+fun EpisodeDetailGeneratingPreview() {
+    val sampleEpisode = Episode(
+        id = "e1",
+        title = "The Future of Medicine",
+        status = "generating",
+        topics = "Health tech, AI diagnostics"
+    )
+
+    AIPodcastsTheme {
+        EpisodeDetailScreen(
+            uiState = EpisodeDetailUiState(
+                episode = sampleEpisode,
+                status = "generating",
+                progress = com.rodrigos01.aipodcasts.data.model.EpisodeProgress(stage = "Writing script", wordCount = 450)
+            ),
+            activeEpisodeId = null,
+            activePositionMs = 0L,
+            isPlaying = false,
+            onNavigateBack = {},
+            onDeleteClick = {},
+            onPlayAudio = {},
+            onRegenerate = {},
+            onConfirmDelete = {},
+            onDismissDelete = {}
+        )
+    }
 }

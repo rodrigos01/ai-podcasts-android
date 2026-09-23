@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -64,13 +65,20 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.R
 import com.rodrigos01.aipodcasts.data.model.EpisodeDraft
+import com.rodrigos01.aipodcasts.data.model.EpisodeGuest
+import com.rodrigos01.aipodcasts.data.model.EpisodeSuggestion
+import com.rodrigos01.aipodcasts.data.model.Host
+import com.rodrigos01.aipodcasts.data.model.Podcast
+import com.rodrigos01.aipodcasts.data.model.Source
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
+import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 import com.rodrigos01.aipodcasts.util.FileUtils
 
@@ -85,9 +93,6 @@ fun EpisodeWizardScreen(
     val context = LocalContext.current
     val currentUserEmail = AIPodcastsApplication.instance.authRepository.currentUser?.email
 
-    // Pages through the episodes of the currently selected suggestion (1 page
-    // for a single episode, 2 for a split). Kept in sync with the ViewModel's
-    // selectedEpisodeIndex in both directions below.
     val episodePagerState = rememberPagerState(pageCount = { uiState.currentEpisodes.size.coerceAtLeast(1) })
 
     LaunchedEffect(episodePagerState) {
@@ -145,6 +150,61 @@ fun EpisodeWizardScreen(
         }
     }
 
+    EpisodeWizardScreen(
+        uiState = uiState,
+        pagerState = episodePagerState,
+        onNavigateBack = onNavigateBack,
+        onToggleSourceSelection = { viewModel.toggleSourceSelection(it) },
+        onToggleSelectAllSources = { viewModel.toggleSelectAllSources() },
+        onOpenAddSourceDialog = { viewModel.openAddSourceDialog() },
+        onDismissAddSourceDialog = { viewModel.dismissAddSourceDialog() },
+        onSetAddSourceMode = { viewModel.setAddSourceMode(it) },
+        onAddSourceTitleChanged = { viewModel.onAddSourceTitleChanged(it) },
+        onAddSourceContentChanged = { viewModel.onAddSourceContentChanged(it) },
+        onPickLocalFile = { localFilePickerLauncher.launch(arrayOf("application/pdf", "text/plain")) },
+        onPickDriveFile = {
+            driveFilePickerLauncher.launch(
+                FileUtils.createGoogleDrivePickerIntent(context, currentUserEmail)
+            )
+        },
+        onSubmitAddSource = { viewModel.submitAddSource(context, podcastId) },
+        onSteeringPromptChanged = { viewModel.onSteeringPromptChanged(it) },
+        onSetEpisodeLength = { viewModel.setEpisodeLength(it) },
+        onGenerateSuggestions = { viewModel.generateSuggestions(podcastId) },
+        onSelectSuggestion = { viewModel.selectSuggestion(it) },
+        onRevisionInstructionChanged = { viewModel.onRevisionInstructionChanged(it) },
+        onApplyRevision = { page -> viewModel.applyRevision(podcastId, episodeIndexOverride = page) },
+        onToggleHostSelection = { viewModel.toggleHostSelection(it) },
+        onToggleGuestSelection = { viewModel.toggleGuestSelection(it) },
+        onConfirmAndStartGeneration = { viewModel.confirmAndStartGeneration(podcastId) }
+    )
+}
+
+@Composable
+private fun EpisodeWizardScreen(
+    uiState: EpisodeWizardUiState,
+    pagerState: PagerState,
+    onNavigateBack: () -> Unit,
+    onToggleSourceSelection: (String) -> Unit,
+    onToggleSelectAllSources: () -> Unit,
+    onOpenAddSourceDialog: () -> Unit,
+    onDismissAddSourceDialog: () -> Unit,
+    onSetAddSourceMode: (AddSourceMode) -> Unit,
+    onAddSourceTitleChanged: (String) -> Unit,
+    onAddSourceContentChanged: (String) -> Unit,
+    onPickLocalFile: () -> Unit,
+    onPickDriveFile: () -> Unit,
+    onSubmitAddSource: () -> Unit,
+    onSteeringPromptChanged: (String) -> Unit,
+    onSetEpisodeLength: (String) -> Unit,
+    onGenerateSuggestions: () -> Unit,
+    onSelectSuggestion: (Int) -> Unit,
+    onRevisionInstructionChanged: (String) -> Unit,
+    onApplyRevision: (Int?) -> Unit,
+    onToggleHostSelection: (String) -> Unit,
+    onToggleGuestSelection: (EpisodeGuest) -> Unit,
+    onConfirmAndStartGeneration: () -> Unit
+) {
     Scaffold(
         topBar = {
             ExpressiveTopAppBar(
@@ -189,7 +249,7 @@ fun EpisodeWizardScreen(
                         modifier = Modifier.weight(1f)
                     )
                     if (uiState.availableSources.isNotEmpty()) {
-                        TextButton(onClick = { viewModel.toggleSelectAllSources() }) {
+                        TextButton(onClick = onToggleSelectAllSources) {
                             Text(
                                 text = if (uiState.selectedSourceIds.size == uiState.availableSources.size) {
                                     stringResource(R.string.episode_wizard_deselect_all_sources)
@@ -204,7 +264,7 @@ fun EpisodeWizardScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedButton(
-                    onClick = { viewModel.openAddSourceDialog() },
+                    onClick = onOpenAddSourceDialog,
                     modifier = Modifier.fillMaxWidth(),
                     shape = ExpressiveShapes.small
                 ) {
@@ -228,7 +288,7 @@ fun EpisodeWizardScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
-                                .clickable { viewModel.toggleSourceSelection(source.id) },
+                                .clickable { onToggleSourceSelection(source.id) },
                             shape = ExpressiveShapes.small,
                             colors = CardDefaults.cardColors(
                                 containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
@@ -243,7 +303,7 @@ fun EpisodeWizardScreen(
                             ) {
                                 Checkbox(
                                     checked = isSelected,
-                                    onCheckedChange = { viewModel.toggleSourceSelection(source.id) }
+                                    onCheckedChange = { onToggleSourceSelection(source.id) }
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
@@ -267,7 +327,7 @@ fun EpisodeWizardScreen(
 
                 OutlinedTextField(
                     value = uiState.steeringPrompt,
-                    onValueChange = { viewModel.onSteeringPromptChanged(it) },
+                    onValueChange = onSteeringPromptChanged,
                     label = { Text(stringResource(R.string.episode_wizard_prompt_label)) },
                     placeholder = { Text(stringResource(R.string.episode_wizard_prompt_hint)) },
                     modifier = Modifier
@@ -279,7 +339,7 @@ fun EpisodeWizardScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Episode Length Selector - chosen up front, shapes generation
+                // Episode Length Selector
                 Text(
                     text = stringResource(R.string.episode_wizard_length_label),
                     style = MaterialTheme.typography.titleSmall,
@@ -296,12 +356,12 @@ fun EpisodeWizardScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable(enabled = !uiState.isDrafting) { viewModel.setEpisodeLength(lengthKey) }
+                                .clickable(enabled = !uiState.isDrafting) { onSetEpisodeLength(lengthKey) }
                                 .padding(vertical = 4.dp)
                         ) {
                             RadioButton(
                                 selected = uiState.episodeLength == lengthKey,
-                                onClick = { viewModel.setEpisodeLength(lengthKey) },
+                                onClick = { onSetEpisodeLength(lengthKey) },
                                 enabled = !uiState.isDrafting
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -322,7 +382,7 @@ fun EpisodeWizardScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Button(
-                    onClick = { viewModel.generateSuggestions(podcastId) },
+                    onClick = onGenerateSuggestions,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -338,7 +398,7 @@ fun EpisodeWizardScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(stringResource(R.string.episode_wizard_generating_draft))
                     } else {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                        Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = stringResource(R.string.episode_wizard_generate_draft_button),
@@ -357,7 +417,7 @@ fun EpisodeWizardScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Suggestion selector tabs (1-2 independent suggestions from the wizard)
+                // Suggestion selector tabs
                 if (uiState.suggestions.size > 1) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -367,7 +427,7 @@ fun EpisodeWizardScreen(
                             val isSelected = index == uiState.selectedSuggestionIndex
                             FilterChip(
                                 selected = isSelected,
-                                onClick = { viewModel.selectSuggestion(index) },
+                                onClick = { onSelectSuggestion(index) },
                                 label = {
                                     Text(
                                         text = stringResource(R.string.episode_wizard_suggestion_badge, index + 1),
@@ -387,7 +447,7 @@ fun EpisodeWizardScreen(
                     Text(
                         text = stringResource(
                             R.string.episode_wizard_part_badge,
-                            episodePagerState.currentPage + 1,
+                            pagerState.currentPage + 1,
                             currentEpisodes.size
                         ),
                         style = MaterialTheme.typography.labelMedium,
@@ -398,7 +458,7 @@ fun EpisodeWizardScreen(
                 }
 
                 HorizontalPager(
-                    state = episodePagerState,
+                    state = pagerState,
                     modifier = Modifier.fillMaxWidth()
                 ) { page ->
                     currentEpisodes.getOrNull(page)?.let { draft ->
@@ -406,7 +466,7 @@ fun EpisodeWizardScreen(
                             draft = draft,
                             isRevising = uiState.isRevising,
                             onApplyPredictedChange = { change ->
-                                viewModel.applyRevision(podcastId, instructionOverride = change, episodeIndexOverride = page)
+                                onApplyRevision(page)
                             }
                         )
                     }
@@ -419,7 +479,7 @@ fun EpisodeWizardScreen(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         currentEpisodes.indices.forEach { index ->
-                            val isActive = index == episodePagerState.currentPage
+                            val isActive = index == pagerState.currentPage
                             Box(
                                 modifier = Modifier
                                     .padding(horizontal = 4.dp)
@@ -436,7 +496,7 @@ fun EpisodeWizardScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Speaker Selection (Constraint: Exactly 2 speakers)
+                // Speaker Selection
                 val currentSpeakerSelection = uiState.selectedSpeakerSelection
                 val totalSelectedSpeakers = currentSpeakerSelection.totalSpeakers
                 Card(
@@ -491,7 +551,7 @@ fun EpisodeWizardScreen(
                             val isSelected = currentSpeakerSelection.hostIds.contains(host.id)
                             FilterChip(
                                 selected = isSelected,
-                                onClick = { viewModel.toggleHostSelection(host.id) },
+                                onClick = { onToggleHostSelection(host.id) },
                                 label = { Text("Host: ${host.name} (${host.voice})") },
                                 leadingIcon = if (isSelected) { { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) } } else null,
                                 modifier = Modifier
@@ -506,7 +566,7 @@ fun EpisodeWizardScreen(
                             val isSelected = currentSpeakerSelection.guests.any { it.name == guest.name }
                             FilterChip(
                                 selected = isSelected,
-                                onClick = { viewModel.toggleGuestSelection(guest) },
+                                onClick = { onToggleGuestSelection(guest) },
                                 label = { Text("Guest: ${guest.name} (${guest.voice}) - ${guest.persona}") },
                                 leadingIcon = if (isSelected) { { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) } } else null,
                                 modifier = Modifier
@@ -533,7 +593,7 @@ fun EpisodeWizardScreen(
                 // Revise Draft Field
                 OutlinedTextField(
                     value = uiState.revisionInstruction,
-                    onValueChange = { viewModel.onRevisionInstructionChanged(it) },
+                    onValueChange = onRevisionInstructionChanged,
                     label = { Text(stringResource(R.string.episode_wizard_revise_hint)) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = ExpressiveShapes.small,
@@ -543,7 +603,7 @@ fun EpisodeWizardScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedButton(
-                    onClick = { viewModel.applyRevision(podcastId, episodeIndexOverride = episodePagerState.currentPage) },
+                    onClick = { onApplyRevision(null) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = ExpressiveShapes.small,
                     enabled = uiState.revisionInstruction.isNotBlank() && !uiState.isRevising && !uiState.isConfirming
@@ -570,7 +630,7 @@ fun EpisodeWizardScreen(
 
                 // Confirm & Start Generation Button
                 Button(
-                    onClick = { viewModel.confirmAndStartGeneration(podcastId) },
+                    onClick = onConfirmAndStartGeneration,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -604,7 +664,7 @@ fun EpisodeWizardScreen(
         if (uiState.addSource.showAddDialog) {
             val addSourceState = uiState.addSource
             AlertDialog(
-                onDismissRequest = { if (!addSourceState.isUploading) viewModel.dismissAddSourceDialog() },
+                onDismissRequest = { if (!addSourceState.isUploading) onDismissAddSourceDialog() },
                 title = {
                     Text(
                         text = stringResource(R.string.sources_add_title),
@@ -619,17 +679,17 @@ fun EpisodeWizardScreen(
                         ) {
                             Tab(
                                 selected = addSourceState.addSourceMode == AddSourceMode.LOCAL_FILE,
-                                onClick = { viewModel.setAddSourceMode(AddSourceMode.LOCAL_FILE) },
+                                onClick = { onSetAddSourceMode(AddSourceMode.LOCAL_FILE) },
                                 text = { Text(stringResource(R.string.sources_tab_file)) }
                             )
                             Tab(
                                 selected = addSourceState.addSourceMode == AddSourceMode.GOOGLE_DRIVE,
-                                onClick = { viewModel.setAddSourceMode(AddSourceMode.GOOGLE_DRIVE) },
+                                onClick = { onSetAddSourceMode(AddSourceMode.GOOGLE_DRIVE) },
                                 text = { Text(stringResource(R.string.sources_tab_drive)) }
                             )
                             Tab(
                                 selected = addSourceState.addSourceMode == AddSourceMode.PLAIN_TEXT,
-                                onClick = { viewModel.setAddSourceMode(AddSourceMode.PLAIN_TEXT) },
+                                onClick = { onSetAddSourceMode(AddSourceMode.PLAIN_TEXT) },
                                 text = { Text(stringResource(R.string.sources_tab_text)) }
                             )
                         }
@@ -639,11 +699,7 @@ fun EpisodeWizardScreen(
                         when (addSourceState.addSourceMode) {
                             AddSourceMode.LOCAL_FILE -> {
                                 OutlinedButton(
-                                    onClick = {
-                                        localFilePickerLauncher.launch(
-                                            arrayOf("application/pdf", "text/plain")
-                                        )
-                                    },
+                                    onClick = onPickLocalFile,
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = ExpressiveShapes.small,
                                     enabled = !addSourceState.isUploading
@@ -663,7 +719,7 @@ fun EpisodeWizardScreen(
                                     Spacer(modifier = Modifier.height(12.dp))
                                     OutlinedTextField(
                                         value = addSourceState.sourceTitle,
-                                        onValueChange = { viewModel.onAddSourceTitleChanged(it) },
+                                        onValueChange = onAddSourceTitleChanged,
                                         label = { Text(stringResource(R.string.sources_source_title_label)) },
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = ExpressiveShapes.small,
@@ -675,14 +731,7 @@ fun EpisodeWizardScreen(
 
                             AddSourceMode.GOOGLE_DRIVE -> {
                                 OutlinedButton(
-                                    onClick = {
-                                        driveFilePickerLauncher.launch(
-                                            FileUtils.createGoogleDrivePickerIntent(
-                                                context = context,
-                                                accountEmail = currentUserEmail
-                                            )
-                                        )
-                                    },
+                                    onClick = onPickDriveFile,
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = ExpressiveShapes.small,
                                     enabled = !addSourceState.isUploading && !addSourceState.isDriveResolving
@@ -703,7 +752,7 @@ fun EpisodeWizardScreen(
                                     Spacer(modifier = Modifier.height(12.dp))
                                     OutlinedTextField(
                                         value = addSourceState.sourceTitle,
-                                        onValueChange = { viewModel.onAddSourceTitleChanged(it) },
+                                        onValueChange = onAddSourceTitleChanged,
                                         label = { Text(stringResource(R.string.sources_source_title_label)) },
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = ExpressiveShapes.small,
@@ -716,7 +765,7 @@ fun EpisodeWizardScreen(
                             AddSourceMode.PLAIN_TEXT -> {
                                 OutlinedTextField(
                                     value = addSourceState.sourceTitle,
-                                    onValueChange = { viewModel.onAddSourceTitleChanged(it) },
+                                    onValueChange = onAddSourceTitleChanged,
                                     label = { Text(stringResource(R.string.sources_source_title_label)) },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = ExpressiveShapes.small,
@@ -728,7 +777,7 @@ fun EpisodeWizardScreen(
 
                                 OutlinedTextField(
                                     value = addSourceState.sourceContent,
-                                    onValueChange = { viewModel.onAddSourceContentChanged(it) },
+                                    onValueChange = onAddSourceContentChanged,
                                     label = { Text(stringResource(R.string.sources_source_content_label)) },
                                     placeholder = { Text(stringResource(R.string.sources_source_content_hint)) },
                                     modifier = Modifier
@@ -778,7 +827,7 @@ fun EpisodeWizardScreen(
                     } && !addSourceState.isUploading && !addSourceState.isDriveResolving
 
                     Button(
-                        onClick = { viewModel.submitAddSource(context, podcastId) },
+                        onClick = onSubmitAddSource,
                         enabled = canSubmit,
                         shape = ExpressiveShapes.small
                     ) {
@@ -787,7 +836,7 @@ fun EpisodeWizardScreen(
                 },
                 dismissButton = {
                     TextButton(
-                        onClick = { viewModel.dismissAddSourceDialog() },
+                        onClick = onDismissAddSourceDialog,
                         enabled = !addSourceState.isUploading
                     ) {
                         Text(stringResource(R.string.action_cancel))
@@ -978,5 +1027,98 @@ fun DraftReviewCard(
                 }
             }
         }
+    }
+}
+
+@Preview(showSystemUi = true, name = "Step 1: Setup")
+@Composable
+fun EpisodeWizardStep1Preview() {
+    val sampleSources = listOf(
+        Source(id = "s1", title = "Meeting Notes", contents = "..."),
+        Source(id = "s2", title = "Research Paper", contents = "...")
+    )
+    AIPodcastsTheme {
+        EpisodeWizardScreen(
+            uiState = EpisodeWizardUiState(
+                step = 1,
+                availableSources = sampleSources,
+                selectedSourceIds = setOf("s1")
+            ),
+            pagerState = rememberPagerState(pageCount = { 1 }),
+            onNavigateBack = {},
+            onToggleSourceSelection = {},
+            onToggleSelectAllSources = {},
+            onOpenAddSourceDialog = {},
+            onDismissAddSourceDialog = {},
+            onSetAddSourceMode = {},
+            onAddSourceTitleChanged = {},
+            onAddSourceContentChanged = {},
+            onPickLocalFile = {},
+            onPickDriveFile = {},
+            onSubmitAddSource = {},
+            onSteeringPromptChanged = {},
+            onSetEpisodeLength = {},
+            onGenerateSuggestions = {},
+            onSelectSuggestion = {},
+            onRevisionInstructionChanged = {},
+            onApplyRevision = {},
+            onToggleHostSelection = {},
+            onToggleGuestSelection = {},
+            onConfirmAndStartGeneration = {}
+        )
+    }
+}
+
+@Preview(showSystemUi = true, name = "Step 2: Draft Review")
+@Composable
+fun EpisodeWizardStep2Preview() {
+    val sampleSuggestion = EpisodeSuggestion(
+        episodes = listOf(
+            EpisodeDraft(
+                title = "AI Ethics in Healthcare",
+                topics = "Patient data privacy, biased algorithms",
+                productionNotes = "Keep it serious but accessible."
+            )
+        )
+    )
+    val samplePodcast = Podcast(
+        id = "p1",
+        title = "Science Weekly",
+        description = "",
+        structure = "",
+        hosts = listOf(Host(id = "h1", name = "Alice", voice = "Nova", persona = "Moderator"))
+    )
+
+    AIPodcastsTheme {
+        EpisodeWizardScreen(
+            uiState = EpisodeWizardUiState(
+                step = 2,
+                podcast = samplePodcast,
+                suggestions = listOf(sampleSuggestion),
+                selectedSuggestionIndex = 0,
+                speakerSelections = listOf(SpeakerSelection(hostIds = setOf("h1")))
+            ),
+            pagerState = rememberPagerState(pageCount = { 1 }),
+            onNavigateBack = {},
+            onToggleSourceSelection = {},
+            onToggleSelectAllSources = {},
+            onOpenAddSourceDialog = {},
+            onDismissAddSourceDialog = {},
+            onSetAddSourceMode = {},
+            onAddSourceTitleChanged = {},
+            onAddSourceContentChanged = {},
+            onPickLocalFile = {},
+            onPickDriveFile = {},
+            onSubmitAddSource = {},
+            onSteeringPromptChanged = {},
+            onSetEpisodeLength = {},
+            onGenerateSuggestions = {},
+            onSelectSuggestion = {},
+            onRevisionInstructionChanged = {},
+            onApplyRevision = {},
+            onToggleHostSelection = {},
+            onToggleGuestSelection = {},
+            onConfirmAndStartGeneration = {}
+        )
     }
 }
