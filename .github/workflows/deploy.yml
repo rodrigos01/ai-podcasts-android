@@ -28,18 +28,18 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Only used below to let `gcloud storage cp` read the app-build-secrets
-      # bucket. export_environment_variables is off so GOOGLE_APPLICATION_CREDENTIALS
-      # for bucket-reader@vola-common (a different GCP project than this app's
-      # Firebase project) never leaks into the Gradle/Firebase App Distribution
-      # step - that step authenticates solely via the serviceCredentialsFile
-      # pulled from the bucket below, not via this impersonated identity.
+      # Lets `gcloud storage cp` below read the app-build-secrets bucket.
+      # GOOGLE_APPLICATION_CREDENTIALS ends up pointing at bucket-reader@vola-common
+      # (a different GCP project than this app's Firebase project) for the rest of
+      # the job, but that's harmless: the Firebase App Distribution step below
+      # authenticates directly from serviceCredentialsFile (set in
+      # app/build.gradle.kts, pulled from the bucket), which takes precedence over
+      # Application Default Credentials and never consults it.
       - name: Authenticate to Google Cloud (Workload Identity Federation)
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/468058805150/locations/global/workloadIdentityPools/github-actions/providers/github
           service_account: bucket-reader@vola-common.iam.gserviceaccount.com
-          export_environment_variables: false
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
