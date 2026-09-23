@@ -18,7 +18,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -53,6 +56,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -80,6 +84,23 @@ fun EpisodeWizardScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val currentUserEmail = AIPodcastsApplication.instance.authRepository.currentUser?.email
+
+    // Pages through the episodes of the currently selected suggestion (1 page
+    // for a single episode, 2 for a split). Kept in sync with the ViewModel's
+    // selectedEpisodeIndex in both directions below.
+    val episodePagerState = rememberPagerState(pageCount = { uiState.currentEpisodes.size.coerceAtLeast(1) })
+
+    LaunchedEffect(episodePagerState) {
+        snapshotFlow { episodePagerState.currentPage }.collect { page ->
+            viewModel.selectEpisodePage(page)
+        }
+    }
+
+    LaunchedEffect(uiState.selectedSuggestionIndex, uiState.selectedEpisodeIndex) {
+        if (episodePagerState.currentPage != uiState.selectedEpisodeIndex) {
+            episodePagerState.scrollToPage(uiState.selectedEpisodeIndex)
+        }
+    }
 
     val localFilePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -361,20 +382,63 @@ fun EpisodeWizardScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                uiState.selectedDraft?.let { draft ->
-                    DraftReviewCard(
-                        draft = draft,
-                        isRevising = uiState.isRevising,
-                        onApplyPredictedChange = { change ->
-                            viewModel.applyRevision(podcastId, instructionOverride = change)
-                        }
+                val currentEpisodes = uiState.currentEpisodes
+                if (currentEpisodes.size > 1) {
+                    Text(
+                        text = stringResource(
+                            R.string.episode_wizard_part_badge,
+                            episodePagerState.currentPage + 1,
+                            currentEpisodes.size
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.tertiary
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                HorizontalPager(
+                    state = episodePagerState,
+                    modifier = Modifier.fillMaxWidth()
+                ) { page ->
+                    currentEpisodes.getOrNull(page)?.let { draft ->
+                        DraftReviewCard(
+                            draft = draft,
+                            isRevising = uiState.isRevising,
+                            onApplyPredictedChange = { change ->
+                                viewModel.applyRevision(podcastId, instructionOverride = change, episodeIndexOverride = page)
+                            }
+                        )
+                    }
+                }
+
+                if (currentEpisodes.size > 1) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        currentEpisodes.indices.forEach { index ->
+                            val isActive = index == episodePagerState.currentPage
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 4.dp)
+                                    .size(if (isActive) 8.dp else 6.dp)
+                                    .background(
+                                        color = if (isActive) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.outlineVariant,
+                                        shape = CircleShape
+                                    )
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
 
                 // Speaker Selection (Constraint: Exactly 2 speakers)
-                val totalSelectedSpeakers = uiState.selectedHostIds.size + uiState.selectedGuests.size
+                val currentSpeakerSelection = uiState.selectedSpeakerSelection
+                val totalSelectedSpeakers = currentSpeakerSelection.totalSpeakers
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = ExpressiveShapes.medium,
@@ -424,7 +488,7 @@ fun EpisodeWizardScreen(
 
                         // Show Hosts
                         uiState.podcast?.hosts?.forEach { host ->
-                            val isSelected = uiState.selectedHostIds.contains(host.id)
+                            val isSelected = currentSpeakerSelection.hostIds.contains(host.id)
                             FilterChip(
                                 selected = isSelected,
                                 onClick = { viewModel.toggleHostSelection(host.id) },
@@ -439,7 +503,7 @@ fun EpisodeWizardScreen(
 
                         // Guest Speakers from Draft
                         uiState.selectedDraft?.guests?.forEach { guest ->
-                            val isSelected = uiState.selectedGuests.any { it.name == guest.name }
+                            val isSelected = currentSpeakerSelection.guests.any { it.name == guest.name }
                             FilterChip(
                                 selected = isSelected,
                                 onClick = { viewModel.toggleGuestSelection(guest) },
@@ -479,7 +543,7 @@ fun EpisodeWizardScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedButton(
-                    onClick = { viewModel.applyRevision(podcastId) },
+                    onClick = { viewModel.applyRevision(podcastId, episodeIndexOverride = episodePagerState.currentPage) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = ExpressiveShapes.small,
                     enabled = uiState.revisionInstruction.isNotBlank() && !uiState.isRevising && !uiState.isConfirming

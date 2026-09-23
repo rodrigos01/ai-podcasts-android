@@ -112,8 +112,9 @@ data class EpisodeDraft(
 )
 
 // One suggestion is either a single episode or a 2-episode split - see the
-// backend's wizard.schema.ts episodeSuggestionSchema. The client currently
-// only surfaces the first episode of each suggestion (no split-editing UI).
+// backend's wizard.schema.ts episodeSuggestionSchema. The client shows every
+// episode in a suggestion via a horizontal pager, each with its own
+// speaker configuration and revision targeting.
 @JsonClass(generateAdapter = true)
 data class EpisodeSuggestion(
     @Json(name = "episodes") val episodes: List<EpisodeDraft>

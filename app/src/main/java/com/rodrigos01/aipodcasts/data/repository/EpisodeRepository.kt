@@ -5,7 +5,6 @@ import com.rodrigos01.aipodcasts.data.api.PodcastApiService
 import com.rodrigos01.aipodcasts.data.model.CreateEpisodeRequest
 import com.rodrigos01.aipodcasts.data.model.Episode
 import com.rodrigos01.aipodcasts.data.model.EpisodeCreateInput
-import com.rodrigos01.aipodcasts.data.model.EpisodeGuest
 import com.rodrigos01.aipodcasts.data.model.EpisodeStatusResponse
 import com.rodrigos01.aipodcasts.data.model.EpisodeSuggestion
 import com.rodrigos01.aipodcasts.data.model.EpisodeWizardOptionsRequest
@@ -31,45 +30,33 @@ class EpisodeRepository(
         suggestions: List<EpisodeSuggestion>,
         length: String,
         targetSuggestionIndex: Int,
+        targetEpisodeIndex: Int? = null,
         instruction: String
     ): List<EpisodeSuggestion> {
         val request = EpisodeWizardReviseRequest(
             suggestions = suggestions,
             length = length,
             targetSuggestionIndex = targetSuggestionIndex,
+            targetEpisodeIndex = targetEpisodeIndex,
             instruction = instruction
         )
         return api.reviseEpisodeSuggestions(podcastId, request).suggestions
     }
 
-    suspend fun createEpisode(
+    // Confirms a whole suggestion at once: 1 entry for a single episode, or 2
+    // for a confirmed split. Each entry must independently satisfy the
+    // 2-speaker rule.
+    suspend fun createEpisodes(
         podcastId: String,
-        title: String,
-        topics: String,
-        length: String,
-        sourceIds: List<String>,
-        participantHostIds: List<String>,
-        guests: List<EpisodeGuest>,
-        productionNotes: String
-    ): Episode {
-        require(participantHostIds.size + guests.size == 2) {
-            "An episode must have exactly 2 speakers (2 hosts or 1 host + 1 guest)"
+        episodes: List<EpisodeCreateInput>
+    ): List<Episode> {
+        episodes.forEach { episode ->
+            require(episode.participantHostIds.size + episode.guests.size == 2) {
+                "Every episode must have exactly 2 speakers (2 hosts or 1 host + 1 guest)"
+            }
         }
-
-        val request = CreateEpisodeRequest(
-            episodes = listOf(
-                EpisodeCreateInput(
-                    title = title,
-                    topics = topics,
-                    length = length,
-                    sourceIds = sourceIds,
-                    participantHostIds = participantHostIds,
-                    guests = guests,
-                    productionNotes = productionNotes
-                )
-            )
-        )
-        return api.createEpisodes(podcastId, request).episodes.first()
+        val request = CreateEpisodeRequest(episodes = episodes)
+        return api.createEpisodes(podcastId, request).episodes
     }
 
     suspend fun getEpisodes(podcastId: String): List<Episode> {

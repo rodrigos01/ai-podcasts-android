@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.data.drive.GoogleDriveHelper
 import com.rodrigos01.aipodcasts.data.model.Episode
+import com.rodrigos01.aipodcasts.data.model.EpisodeCreateInput
 import com.rodrigos01.aipodcasts.data.model.EpisodeDraft
 import com.rodrigos01.aipodcasts.data.model.EpisodeGuest
 import com.rodrigos01.aipodcasts.data.model.EpisodeSuggestion
@@ -45,6 +46,15 @@ data class AddSourceUiState(
     val errorMessage: String? = null
 )
 
+// One episode within a suggestion needs its own speakers - a split's two
+// parts often cast a different guest (each has its own EpisodeDraft.guests).
+data class SpeakerSelection(
+    val hostIds: Set<String> = emptySet(),
+    val guests: List<EpisodeGuest> = emptyList()
+) {
+    val totalSpeakers: Int get() = hostIds.size + guests.size
+}
+
 data class EpisodeWizardUiState(
     val step: Int = 1, // 1: Sources, Prompt & Length, 2: Choose Suggestion & Configure Speakers
     val podcast: Podcast? = null,
@@ -57,18 +67,26 @@ data class EpisodeWizardUiState(
     val isRevising: Boolean = false,
     val isConfirming: Boolean = false,
     // 1-2 independent suggestions from the wizard; each is itself 1-2 episodes
-    // (a natural split), but this client only surfaces the first episode of
-    // whichever suggestion is selected - no split-editing UI yet.
+    // (a natural split) shown side by side in a horizontal pager.
     val suggestions: List<EpisodeSuggestion> = emptyList(),
     val selectedSuggestionIndex: Int = 0,
+    // Which episode within the selected suggestion the pager currently shows -
+    // drives revision targeting and which speaker selection is being edited.
+    val selectedEpisodeIndex: Int = 0,
+    // One entry per episode in the selected suggestion, same order.
+    val speakerSelections: List<SpeakerSelection> = emptyList(),
     val revisionInstruction: String = "",
-    val selectedHostIds: Set<String> = emptySet(),
-    val selectedGuests: List<EpisodeGuest> = emptyList(),
     val confirmedEpisode: Episode? = null,
     val errorMessage: String? = null
 ) {
+    val currentEpisodes: List<EpisodeDraft>
+        get() = suggestions.getOrNull(selectedSuggestionIndex)?.episodes ?: emptyList()
+
     val selectedDraft: EpisodeDraft?
-        get() = suggestions.getOrNull(selectedSuggestionIndex)?.episodes?.firstOrNull()
+        get() = currentEpisodes.getOrNull(selectedEpisodeIndex)
+
+    val selectedSpeakerSelection: SpeakerSelection
+        get() = speakerSelections.getOrNull(selectedEpisodeIndex) ?: SpeakerSelection()
 }
 
 class EpisodeWizardViewModel(
@@ -402,7 +420,7 @@ class EpisodeWizardViewModel(
 
     // Auto-configure default speakers to meet the 2-speaker rule for a freshly
     // (re)generated or newly selected draft.
-    private fun defaultSpeakerSelection(draft: EpisodeDraft?): Pair<Set<String>, List<EpisodeGuest>> {
+    private fun defaultSpeakerSelection(draft: EpisodeDraft?): SpeakerSelection {
         val hosts = _uiState.value.podcast?.hosts ?: emptyList()
         val selectedHosts = mutableSetOf<String>()
         val selectedGuests = mutableListOf<EpisodeGuest>()
@@ -415,8 +433,11 @@ class EpisodeWizardViewModel(
                 selectedGuests.add(draft.guests.first())
             }
         }
-        return selectedHosts to selectedGuests
+        return SpeakerSelection(selectedHosts, selectedGuests)
     }
+
+    private fun defaultSpeakerSelections(episodes: List<EpisodeDraft>): List<SpeakerSelection> =
+        episodes.map { defaultSpeakerSelection(it) }
 
     fun generateSuggestions(podcastId: String) {
         val sourceIds = _uiState.value.selectedSourceIds.toList()
@@ -435,16 +456,14 @@ class EpisodeWizardViewModel(
                     prompt = _uiState.value.steeringPrompt.trim().ifBlank { null }
                 )
 
-                val (selectedHosts, selectedGuests) = defaultSpeakerSelection(
-                    suggestions.firstOrNull()?.episodes?.firstOrNull()
-                )
+                val firstEpisodes = suggestions.firstOrNull()?.episodes ?: emptyList()
 
                 _uiState.value = _uiState.value.copy(
                     isDrafting = false,
                     suggestions = suggestions,
                     selectedSuggestionIndex = 0,
-                    selectedHostIds = selectedHosts,
-                    selectedGuests = selectedGuests,
+                    selectedEpisodeIndex = 0,
+                    speakerSelections = defaultSpeakerSelections(firstEpisodes),
                     step = 2
                 )
             } catch (e: Exception) {
@@ -458,26 +477,37 @@ class EpisodeWizardViewModel(
 
     fun selectSuggestion(index: Int) {
         if (index !in _uiState.value.suggestions.indices) return
-        val draft = _uiState.value.suggestions[index].episodes.firstOrNull()
-        val (selectedHosts, selectedGuests) = defaultSpeakerSelection(draft)
+        val episodes = _uiState.value.suggestions[index].episodes
         _uiState.value = _uiState.value.copy(
             selectedSuggestionIndex = index,
-            selectedHostIds = selectedHosts,
-            selectedGuests = selectedGuests
+            selectedEpisodeIndex = 0,
+            speakerSelections = defaultSpeakerSelections(episodes)
         )
+    }
+
+    // Called as the horizontal pager settles on a page, so revisions and
+    // speaker edits apply to whichever part of a split is currently shown.
+    fun selectEpisodePage(index: Int) {
+        if (index !in _uiState.value.currentEpisodes.indices || index == _uiState.value.selectedEpisodeIndex) return
+        _uiState.value = _uiState.value.copy(selectedEpisodeIndex = index)
     }
 
     fun onRevisionInstructionChanged(instruction: String) {
         _uiState.value = _uiState.value.copy(revisionInstruction = instruction)
     }
 
-    fun applyRevision(podcastId: String, instructionOverride: String? = null) {
+    fun applyRevision(podcastId: String, instructionOverride: String? = null, episodeIndexOverride: Int? = null) {
         val currentSuggestions = _uiState.value.suggestions
         if (currentSuggestions.isEmpty()) return
         val instruction = (instructionOverride ?: _uiState.value.revisionInstruction).trim()
         if (instruction.isBlank()) return
 
-        val targetIndex = _uiState.value.selectedSuggestionIndex
+        val targetSuggestionIndex = _uiState.value.selectedSuggestionIndex
+        val episodeCount = _uiState.value.currentEpisodes.size
+        val requestedEpisodeIndex = episodeIndexOverride ?: _uiState.value.selectedEpisodeIndex
+        // Omit entirely when there's only one episode in the suggestion - "revise
+        // just this one" and "revise the whole suggestion" are the same request.
+        val targetEpisodeIndex = if (episodeCount > 1) requestedEpisodeIndex else null
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isRevising = true, errorMessage = null)
@@ -486,14 +516,33 @@ class EpisodeWizardViewModel(
                     podcastId = podcastId,
                     suggestions = currentSuggestions,
                     length = _uiState.value.episodeLength,
-                    targetSuggestionIndex = targetIndex,
+                    targetSuggestionIndex = targetSuggestionIndex,
+                    targetEpisodeIndex = targetEpisodeIndex,
                     instruction = instruction
                 )
-                val clampedIndex = targetIndex.coerceIn(0, (revised.size - 1).coerceAtLeast(0))
+                val clampedSuggestionIndex = targetSuggestionIndex.coerceIn(0, (revised.size - 1).coerceAtLeast(0))
+                val newEpisodes = revised.getOrNull(clampedSuggestionIndex)?.episodes ?: emptyList()
+                val clampedEpisodeIndex = _uiState.value.selectedEpisodeIndex
+                    .coerceIn(0, (newEpisodes.size - 1).coerceAtLeast(0))
+
+                // Keep speaker picks for episodes that weren't touched by this
+                // revision; only the revised episode(s) get fresh defaults.
+                val previousSelections = _uiState.value.speakerSelections
+                val newSpeakerSelections = newEpisodes.mapIndexed { index, draft ->
+                    val wasRevised = targetEpisodeIndex == null || targetEpisodeIndex == index
+                    if (!wasRevised && index < previousSelections.size) {
+                        previousSelections[index]
+                    } else {
+                        defaultSpeakerSelection(draft)
+                    }
+                }
+
                 _uiState.value = _uiState.value.copy(
                     isRevising = false,
                     suggestions = revised,
-                    selectedSuggestionIndex = clampedIndex,
+                    selectedSuggestionIndex = clampedSuggestionIndex,
+                    selectedEpisodeIndex = clampedEpisodeIndex,
+                    speakerSelections = newSpeakerSelections,
                     revisionInstruction = if (instructionOverride != null) _uiState.value.revisionInstruction else ""
                 )
             } catch (e: Exception) {
@@ -509,59 +558,76 @@ class EpisodeWizardViewModel(
         _uiState.value = _uiState.value.copy(episodeLength = length)
     }
 
+    private fun updateSelectedSpeakerSelection(transform: (SpeakerSelection) -> SpeakerSelection) {
+        val index = _uiState.value.selectedEpisodeIndex
+        val current = _uiState.value.speakerSelections
+        if (index !in current.indices) return
+        val updated = current.toMutableList()
+        updated[index] = transform(updated[index])
+        _uiState.value = _uiState.value.copy(speakerSelections = updated)
+    }
+
     fun toggleHostSelection(hostId: String) {
-        val current = _uiState.value.selectedHostIds.toMutableSet()
-        if (current.contains(hostId)) {
-            current.remove(hostId)
-        } else {
-            val totalSpeakers = current.size + _uiState.value.selectedGuests.size
-            if (totalSpeakers < 2) {
+        updateSelectedSpeakerSelection { selection ->
+            val current = selection.hostIds.toMutableSet()
+            if (current.contains(hostId)) {
+                current.remove(hostId)
+            } else if (selection.totalSpeakers < 2) {
                 current.add(hostId)
             }
+            selection.copy(hostIds = current)
         }
-        _uiState.value = _uiState.value.copy(selectedHostIds = current)
     }
 
     fun toggleGuestSelection(guest: EpisodeGuest) {
-        val current = _uiState.value.selectedGuests.toMutableList()
-        val exists = current.any { it.name == guest.name }
-        if (exists) {
-            current.removeAll { it.name == guest.name }
-        } else {
-            val totalSpeakers = _uiState.value.selectedHostIds.size + current.size
-            if (totalSpeakers < 2) {
+        updateSelectedSpeakerSelection { selection ->
+            val current = selection.guests.toMutableList()
+            val exists = current.any { it.name == guest.name }
+            if (exists) {
+                current.removeAll { it.name == guest.name }
+            } else if (selection.totalSpeakers < 2) {
                 current.add(guest)
             }
+            selection.copy(guests = current)
         }
-        _uiState.value = _uiState.value.copy(selectedGuests = current)
     }
 
     fun confirmAndStartGeneration(podcastId: String) {
-        val draft = _uiState.value.selectedDraft ?: return
-        val totalSpeakers = _uiState.value.selectedHostIds.size + _uiState.value.selectedGuests.size
-        if (totalSpeakers != 2) {
+        val episodes = _uiState.value.currentEpisodes
+        if (episodes.isEmpty()) return
+        val selections = _uiState.value.speakerSelections
+        if (selections.size != episodes.size) return
+
+        val invalidIndex = selections.indexOfFirst { it.totalSpeakers != 2 }
+        if (invalidIndex != -1) {
+            val label = if (episodes.size > 1) "Part ${invalidIndex + 1}" else "This episode"
             _uiState.value = _uiState.value.copy(
-                errorMessage = "You must select exactly 2 speakers (2 hosts, or 1 host + 1 guest)"
+                errorMessage = "$label must have exactly 2 speakers (2 hosts, or 1 host + 1 guest)"
             )
             return
+        }
+
+        val sourceIds = _uiState.value.selectedSourceIds.toList()
+        val length = _uiState.value.episodeLength
+        val inputs = episodes.mapIndexed { index, draft ->
+            EpisodeCreateInput(
+                title = draft.title,
+                topics = draft.topics,
+                length = length,
+                sourceIds = sourceIds,
+                participantHostIds = selections[index].hostIds.toList(),
+                guests = selections[index].guests,
+                productionNotes = draft.productionNotes
+            )
         }
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isConfirming = true, errorMessage = null)
             try {
-                val created = episodeRepo.createEpisode(
-                    podcastId = podcastId,
-                    title = draft.title,
-                    topics = draft.topics,
-                    length = _uiState.value.episodeLength,
-                    sourceIds = _uiState.value.selectedSourceIds.toList(),
-                    participantHostIds = _uiState.value.selectedHostIds.toList(),
-                    guests = _uiState.value.selectedGuests,
-                    productionNotes = draft.productionNotes
-                )
+                val created = episodeRepo.createEpisodes(podcastId, inputs)
                 _uiState.value = _uiState.value.copy(
                     isConfirming = false,
-                    confirmedEpisode = created
+                    confirmedEpisode = created.firstOrNull()
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
