@@ -168,9 +168,9 @@ To upload a file, `POST` multipart form-data with a `file` field (PDF only — t
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/podcasts/:podcastId/episodes/wizard/options` | Generate a single episode draft from sources (+ optional prompt) |
-| POST | `/podcasts/:podcastId/episodes/wizard/revise` | Revise the draft from a free-text instruction |
-| POST | `/podcasts/:podcastId/episodes` | Confirm a draft — creates the episode and starts generation (`202`) |
+| POST | `/podcasts/:podcastId/episodes/wizard/options` | Generate 1-2 episode suggestions from sources (+ optional prompt + a chosen length) |
+| POST | `/podcasts/:podcastId/episodes/wizard/revise` | Revise one suggestion from a free-text instruction |
+| POST | `/podcasts/:podcastId/episodes` | Confirm a suggestion — creates its episode(s) and starts generation (`202`) |
 | GET | `/podcasts/:podcastId/episodes` | List episodes |
 | GET | `/podcasts/:podcastId/episodes/:episodeId` | Get one episode (includes transcript/ttsPrompt once ready) |
 | GET | `/podcasts/:podcastId/episodes/:episodeId/status` | Lightweight status poll (no transcript payload) |
@@ -180,33 +180,64 @@ To upload a file, `POST` multipart form-data with a `file` field (PDF only — t
 
 **`POST /podcasts/:podcastId/episodes/wizard/options`**
 ```json
-// request
-{ "sourceIds": ["<source-id>"], "prompt": "optional steering prompt" }
+// request — length is chosen up front and shapes the draft(s), not suggested after the fact
+{ "sourceIds": ["<source-id>"], "prompt": "optional steering prompt", "length": "short" }
 
-// response
+// response — 1-2 independent suggestions; each is itself 1-2 episodes (a natural split,
+// e.g. when the material or the prompt calls for it). There's no positional convention:
+// a suggestion's episode count says nothing about whether it's the first or second entry.
 {
-  "draft": {
-    "title": "...", "topics": "...", "productionNotes": "...",
-    "guests": [{ "name": "...", "voice": "Kore", "persona": "..." }],
-    "predictedChanges": ["...", "...", "..."]
-  }
+  "suggestions": [
+    {
+      "episodes": [
+        {
+          "title": "...", "topics": "...", "productionNotes": "...",
+          "guests": [{ "name": "...", "voice": "Kore", "persona": "..." }],
+          "predictedChanges": ["...", "...", "..."]
+        }
+      ]
+    }
+  ]
 }
 ```
 
-**`POST /podcasts/:podcastId/episodes`** (confirm)
+**`POST /podcasts/:podcastId/episodes/wizard/revise`**
+```json
+// request — targetEpisodeIndex omitted revises every episode within that suggestion;
+// set it to revise just one (e.g. only part 2 of a split)
+{
+  "suggestions": [ /* the suggestions as returned above */ ],
+  "length": "short",
+  "targetSuggestionIndex": 0,
+  "targetEpisodeIndex": 0,
+  "instruction": "Make the topics punchier"
+}
+// response: same shape as /wizard/options
+```
+
+**`POST /podcasts/:podcastId/episodes`** (confirm) — body is `{ episodes: [...] }`: a whole
+suggestion's episodes array (1 entry, or 2 for a confirmed split), never a bare single-episode
+object. The server creates all of them immediately and generates them sequentially in the
+background (part 2 inherits part 1's condensed context); the caller gets back every created
+episode in one response and polls each one's own status as usual.
 ```json
 {
-  "title": "...",
-  "topics": "...",
-  "length": "short",            // "short" | "medium" | "long"
-  "sourceIds": ["<source-id>"],
-  "participantHostIds": ["<host-id>"],
-  "guests": [{ "name": "...", "voice": "Kore", "persona": "..." }],
-  "productionNotes": "..."
+  "episodes": [
+    {
+      "title": "...",
+      "topics": "...",
+      "length": "short",            // "short" | "medium" | "long"
+      "sourceIds": ["<source-id>"],
+      "participantHostIds": ["<host-id>"],
+      "guests": [{ "name": "...", "voice": "Kore", "persona": "..." }],
+      "productionNotes": "..."
+    }
+  ]
 }
+// response: 202 with { "episodes": [...] }
 ```
 
-**Important constraint**: `participantHostIds.length + guests.length` must equal exactly **2** — every episode is voiced by either 2 hosts or 1 host + 1 guest, never more or fewer. A single-host podcast therefore requires a guest on every episode.
+**Important constraint**: for each episode in the array, `participantHostIds.length + guests.length` must equal exactly **2** — every episode is voiced by either 2 hosts or 1 host + 1 guest, never more or fewer. A single-host podcast therefore requires a guest on every episode.
 
 Episode length word/time targets:
 

@@ -4,9 +4,10 @@ import com.rodrigos01.aipodcasts.data.api.ApiClient
 import com.rodrigos01.aipodcasts.data.api.PodcastApiService
 import com.rodrigos01.aipodcasts.data.model.CreateEpisodeRequest
 import com.rodrigos01.aipodcasts.data.model.Episode
-import com.rodrigos01.aipodcasts.data.model.EpisodeDraft
+import com.rodrigos01.aipodcasts.data.model.EpisodeCreateInput
 import com.rodrigos01.aipodcasts.data.model.EpisodeGuest
 import com.rodrigos01.aipodcasts.data.model.EpisodeStatusResponse
+import com.rodrigos01.aipodcasts.data.model.EpisodeSuggestion
 import com.rodrigos01.aipodcasts.data.model.EpisodeWizardOptionsRequest
 import com.rodrigos01.aipodcasts.data.model.EpisodeWizardReviseRequest
 import com.rodrigos01.aipodcasts.data.model.UpdateEpisodeRequest
@@ -15,22 +16,30 @@ class EpisodeRepository(
     private val api: PodcastApiService = ApiClient.apiService
 ) {
 
-    suspend fun generateEpisodeDraft(
+    suspend fun generateEpisodeSuggestions(
         podcastId: String,
         sourceIds: List<String>,
+        length: String,
         prompt: String? = null
-    ): EpisodeDraft {
-        val request = EpisodeWizardOptionsRequest(sourceIds = sourceIds, prompt = prompt)
-        return api.generateEpisodeDraft(podcastId, request).draft
+    ): List<EpisodeSuggestion> {
+        val request = EpisodeWizardOptionsRequest(sourceIds = sourceIds, prompt = prompt, length = length)
+        return api.generateEpisodeSuggestions(podcastId, request).suggestions
     }
 
-    suspend fun reviseEpisodeDraft(
+    suspend fun reviseEpisodeSuggestions(
         podcastId: String,
-        draft: EpisodeDraft,
+        suggestions: List<EpisodeSuggestion>,
+        length: String,
+        targetSuggestionIndex: Int,
         instruction: String
-    ): EpisodeDraft {
-        val request = EpisodeWizardReviseRequest(draft = draft, instruction = instruction)
-        return api.reviseEpisodeDraft(podcastId, request).draft
+    ): List<EpisodeSuggestion> {
+        val request = EpisodeWizardReviseRequest(
+            suggestions = suggestions,
+            length = length,
+            targetSuggestionIndex = targetSuggestionIndex,
+            instruction = instruction
+        )
+        return api.reviseEpisodeSuggestions(podcastId, request).suggestions
     }
 
     suspend fun createEpisode(
@@ -48,15 +57,19 @@ class EpisodeRepository(
         }
 
         val request = CreateEpisodeRequest(
-            title = title,
-            topics = topics,
-            length = length,
-            sourceIds = sourceIds,
-            participantHostIds = participantHostIds,
-            guests = guests,
-            productionNotes = productionNotes
+            episodes = listOf(
+                EpisodeCreateInput(
+                    title = title,
+                    topics = topics,
+                    length = length,
+                    sourceIds = sourceIds,
+                    participantHostIds = participantHostIds,
+                    guests = guests,
+                    productionNotes = productionNotes
+                )
+            )
         )
-        return api.createEpisode(podcastId, request)
+        return api.createEpisodes(podcastId, request).episodes.first()
     }
 
     suspend fun getEpisodes(podcastId: String): List<Episode> {

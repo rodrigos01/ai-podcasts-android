@@ -2,13 +2,14 @@ package com.rodrigos01.aipodcasts.data.api
 
 import com.rodrigos01.aipodcasts.data.model.CreateDriveSourceRequest
 import com.rodrigos01.aipodcasts.data.model.CreateEpisodeRequest
+import com.rodrigos01.aipodcasts.data.model.CreateEpisodeResponse
 import com.rodrigos01.aipodcasts.data.model.CreatePodcastRequest
 import com.rodrigos01.aipodcasts.data.model.CreateSourceRequest
 import com.rodrigos01.aipodcasts.data.model.Episode
 import com.rodrigos01.aipodcasts.data.model.EpisodeStatusResponse
-import com.rodrigos01.aipodcasts.data.model.EpisodeWizardDraftResponse
 import com.rodrigos01.aipodcasts.data.model.EpisodeWizardOptionsRequest
 import com.rodrigos01.aipodcasts.data.model.EpisodeWizardReviseRequest
+import com.rodrigos01.aipodcasts.data.model.EpisodeWizardSuggestionsResponse
 import com.rodrigos01.aipodcasts.data.model.HealthResponse
 import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.data.model.PodcastWizardOptionsRequest
@@ -114,22 +115,22 @@ interface PodcastApiService {
 
     // Episode Wizard & CRUD
     @POST("podcasts/{podcastId}/episodes/wizard/options")
-    suspend fun generateEpisodeDraft(
+    suspend fun generateEpisodeSuggestions(
         @Path("podcastId") podcastId: String,
         @Body request: EpisodeWizardOptionsRequest
-    ): EpisodeWizardDraftResponse
+    ): EpisodeWizardSuggestionsResponse
 
     @POST("podcasts/{podcastId}/episodes/wizard/revise")
-    suspend fun reviseEpisodeDraft(
+    suspend fun reviseEpisodeSuggestions(
         @Path("podcastId") podcastId: String,
         @Body request: EpisodeWizardReviseRequest
-    ): EpisodeWizardDraftResponse
+    ): EpisodeWizardSuggestionsResponse
 
     @POST("podcasts/{podcastId}/episodes")
-    suspend fun createEpisode(
+    suspend fun createEpisodes(
         @Path("podcastId") podcastId: String,
         @Body request: CreateEpisodeRequest
-    ): Episode
+    ): CreateEpisodeResponse
 
     @GET("podcasts/{podcastId}/episodes")
     suspend fun getEpisodes(

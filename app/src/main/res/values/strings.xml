@@ -119,6 +119,7 @@
     <string name="episode_wizard_prompt_hint">e.g., Focus on the controversy around product design, with a lively debate.</string>
     <string name="episode_wizard_generate_draft_button">Generate Episode Draft</string>
     <string name="episode_wizard_step_draft_title">2. Review &amp; Configure Draft</string>
+    <string name="episode_wizard_suggestion_badge">Suggestion %1$d</string>
     <string name="episode_wizard_title_label">Episode Title</string>
     <string name="episode_wizard_topics_label">Topics Covered</string>
     <string name="episode_wizard_notes_label">Production Notes</string>

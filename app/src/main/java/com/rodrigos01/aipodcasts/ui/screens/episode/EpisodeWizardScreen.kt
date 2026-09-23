@@ -256,6 +256,39 @@ fun EpisodeWizardScreen(
                     enabled = !uiState.isDrafting
                 )
 
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Episode Length Selector - chosen up front, shapes generation
+                Text(
+                    text = stringResource(R.string.episode_wizard_length_label),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Column {
+                    listOf(
+                        "short" to R.string.episode_length_short,
+                        "medium" to R.string.episode_length_medium,
+                        "long" to R.string.episode_length_long
+                    ).forEach { (lengthKey, stringResId) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = !uiState.isDrafting) { viewModel.setEpisodeLength(lengthKey) }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            RadioButton(
+                                selected = uiState.episodeLength == lengthKey,
+                                onClick = { viewModel.setEpisodeLength(lengthKey) },
+                                enabled = !uiState.isDrafting
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = stringResource(stringResId), style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+
                 if (uiState.errorMessage != null) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
@@ -268,7 +301,7 @@ fun EpisodeWizardScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Button(
-                    onClick = { viewModel.generateDraft(podcastId) },
+                    onClick = { viewModel.generateSuggestions(podcastId) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -294,7 +327,7 @@ fun EpisodeWizardScreen(
                     }
                 }
             } else {
-                // Step 2: Review Draft, Configure Speakers & Confirm
+                // Step 2: Choose Suggestion, Configure Speakers & Confirm
                 Text(
                     text = stringResource(R.string.episode_wizard_step_draft_title),
                     style = MaterialTheme.typography.headlineSmall,
@@ -303,7 +336,32 @@ fun EpisodeWizardScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                uiState.draft?.let { draft ->
+                // Suggestion selector tabs (1-2 independent suggestions from the wizard)
+                if (uiState.suggestions.size > 1) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        uiState.suggestions.indices.forEach { index ->
+                            val isSelected = index == uiState.selectedSuggestionIndex
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { viewModel.selectSuggestion(index) },
+                                label = {
+                                    Text(
+                                        text = stringResource(R.string.episode_wizard_suggestion_badge, index + 1),
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = ExpressiveShapes.small
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                uiState.selectedDraft?.let { draft ->
                     DraftReviewCard(
                         draft = draft,
                         isRevising = uiState.isRevising,
@@ -311,38 +369,6 @@ fun EpisodeWizardScreen(
                             viewModel.applyRevision(podcastId, instructionOverride = change)
                         }
                     )
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // Episode Length Selector
-                Text(
-                    text = stringResource(R.string.episode_wizard_length_label),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Column {
-                    listOf(
-                        "short" to R.string.episode_length_short,
-                        "medium" to R.string.episode_length_medium,
-                        "long" to R.string.episode_length_long
-                    ).forEach { (lengthKey, stringResId) ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { viewModel.setEpisodeLength(lengthKey) }
-                                .padding(vertical = 4.dp)
-                        ) {
-                            RadioButton(
-                                selected = uiState.episodeLength == lengthKey,
-                                onClick = { viewModel.setEpisodeLength(lengthKey) }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = stringResource(stringResId), style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
@@ -412,7 +438,7 @@ fun EpisodeWizardScreen(
                         }
 
                         // Guest Speakers from Draft
-                        uiState.draft?.guests?.forEach { guest ->
+                        uiState.selectedDraft?.guests?.forEach { guest ->
                             val isSelected = uiState.selectedGuests.any { it.name == guest.name }
                             FilterChip(
                                 selected = isSelected,
