@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -37,9 +38,15 @@ class PodcastAudioController(
     private var mediaController: MediaController? = null
     private var progressJob: Job? = null
     private var statusPollJob: Job? = null
+    private var resumeWatchJob: Job? = null
     private var streamStartOffsetMs: Long = 0L
     private var currentPodcastId: String? = null
     private var currentIdToken: String? = null
+
+    // Latest known generation status for the current episode, kept up to date by the
+    // status poll below. Used to tell a genuine end-of-episode apart from merely having
+    // caught up to the backend's live generation edge.
+    private var latestEpisodeStatus: String = "ready"
 
     private val _currentEpisode = MutableStateFlow<Episode?>(null)
     val currentEpisode: StateFlow<Episode?> = _currentEpisode.asStateFlow()
@@ -102,11 +109,28 @@ class PodcastAudioController(
                 _durationMs.value = if (duration > 0) duration else 0L
 
                 if (playbackState == Player.STATE_ENDED) {
-                    _currentEpisode.value?.let { ep ->
-                        playbackPositionRepository.clearPosition(ep.id)
+                    if (isEpisodeFullyGenerated()) {
+                        _currentEpisode.value?.let { ep ->
+                            playbackPositionRepository.clearPosition(ep.id)
+                        }
+                        _currentPositionMs.value = 0L
+                        streamStartOffsetMs = 0L
+                    } else {
+                        // The stream ended, but the backend hasn't finished generating this
+                        // episode yet: we've just caught up to its live edge, not reached the
+                        // real end. Keep the current position and pick back up once more audio
+                        // is available instead of treating this as a completed episode.
+                        maybeWaitForMoreAudioAndResume()
                     }
-                    _currentPositionMs.value = 0L
-                    streamStartOffsetMs = 0L
+                }
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                // A stalled/closed connection while the episode is still generating (e.g. the
+                // backend took longer than our read timeout to produce the next chunk) should
+                // not kill playback for good: wait for more audio and resume automatically.
+                if (!isEpisodeFullyGenerated()) {
+                    maybeWaitForMoreAudioAndResume()
                 }
             }
 
@@ -114,6 +138,30 @@ class PodcastAudioController(
                 _playbackSpeed.value = playbackParameters.speed
             }
         })
+    }
+
+    private fun isEpisodeFullyGenerated(): Boolean =
+        latestEpisodeStatus.equals("ready", ignoreCase = true)
+
+    private fun maybeWaitForMoreAudioAndResume() {
+        val player = mediaController ?: return
+        // Only auto-resume if the user actually wanted playback to continue; if they'd
+        // already paused, leave it paused.
+        if (!player.playWhenReady) return
+        if (_currentEpisode.value == null || currentPodcastId == null) return
+
+        resumeWatchJob?.cancel()
+        val resumeFromMs = _currentPositionMs.value
+        resumeWatchJob = scope.launch {
+            while (isActive) {
+                delay(3000)
+                val generatedMs = ((_generatedAudioSeconds.value ?: 0.0) * 1000).toLong()
+                if (isEpisodeFullyGenerated() || generatedMs > resumeFromMs + 2000L) {
+                    restartAtPositionMs(resumeFromMs, forcePlay = true)
+                    break
+                }
+            }
+        }
     }
 
     private fun startProgressLoop() {
@@ -147,6 +195,7 @@ class PodcastAudioController(
                 try {
                     val status = episodeRepository.getEpisodeStatus(podcastId, episodeId)
                     _generatedAudioSeconds.value = status.generatedAudioSeconds
+                    latestEpisodeStatus = status.status
                     if (status.status.equals("ready", ignoreCase = true) ||
                         status.status.equals("failed", ignoreCase = true)
                     ) {
@@ -176,11 +225,13 @@ class PodcastAudioController(
             }
         }
 
+        resumeWatchJob?.cancel()
         _currentEpisode.value = episode
         _currentPodcastTitle.value = podcastTitle
         currentPodcastId = podcastId
         currentIdToken = idToken
         _generatedAudioSeconds.value = null
+        latestEpisodeStatus = episode.status
         startStatusPolling(podcastId, episode.id)
 
         val savedPosMs = if (forceFromBeginning) 0L else playbackPositionRepository.getPositionMs(episode.id)
@@ -217,6 +268,12 @@ class PodcastAudioController(
         val player = mediaController ?: return
         if (player.isPlaying) {
             player.pause()
+        } else if (player.playbackState == Player.STATE_ENDED || player.playbackState == Player.STATE_IDLE) {
+            // The underlying stream stalled or hit a clean EOF at the live generation edge:
+            // a plain play() here would restart the same media item from position 0, so
+            // reconnect at the position we actually stopped at instead.
+            resumeWatchJob?.cancel()
+            restartAtPositionMs(_currentPositionMs.value, forcePlay = true)
         } else {
             player.play()
         }
@@ -242,11 +299,11 @@ class PodcastAudioController(
         }
     }
 
-    private fun restartAtPositionMs(positionMs: Long) {
+    private fun restartAtPositionMs(positionMs: Long, forcePlay: Boolean? = null) {
         val player = mediaController ?: return
         val episode = _currentEpisode.value ?: return
         val podcastId = currentPodcastId ?: return
-        val wasPlaying = player.isPlaying
+        val shouldPlay = forcePlay ?: player.isPlaying
 
         streamStartOffsetMs = positionMs
         _currentPositionMs.value = positionMs
@@ -265,7 +322,7 @@ class PodcastAudioController(
 
         player.setMediaItem(mediaItem)
         player.prepare()
-        if (wasPlaying) player.play()
+        if (shouldPlay) player.play()
     }
 
     fun seekRelative(offsetSeconds: Int) {
@@ -292,6 +349,7 @@ class PodcastAudioController(
         }
         stopProgressLoop()
         statusPollJob?.cancel()
+        resumeWatchJob?.cancel()
         controllerFuture?.let { MediaController.releaseFuture(it) }
     }
 }
