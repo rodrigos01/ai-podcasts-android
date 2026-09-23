@@ -111,32 +111,57 @@ data class EpisodeDraft(
     @Json(name = "predictedChanges") val predictedChanges: List<String> = emptyList()
 )
 
+// One suggestion is either a single episode or a 2-episode split - see the
+// backend's wizard.schema.ts episodeSuggestionSchema. The client shows every
+// episode in a suggestion via a horizontal pager, each with its own
+// speaker configuration and revision targeting.
 @JsonClass(generateAdapter = true)
-data class EpisodeWizardOptionsRequest(
-    @Json(name = "sourceIds") val sourceIds: List<String>,
-    @Json(name = "prompt") val prompt: String? = null
+data class EpisodeSuggestion(
+    @Json(name = "episodes") val episodes: List<EpisodeDraft>
 )
 
 @JsonClass(generateAdapter = true)
-data class EpisodeWizardDraftResponse(
-    @Json(name = "draft") val draft: EpisodeDraft
+data class EpisodeWizardOptionsRequest(
+    @Json(name = "sourceIds") val sourceIds: List<String>,
+    @Json(name = "prompt") val prompt: String? = null,
+    @Json(name = "length") val length: String
+)
+
+@JsonClass(generateAdapter = true)
+data class EpisodeWizardSuggestionsResponse(
+    @Json(name = "suggestions") val suggestions: List<EpisodeSuggestion>
 )
 
 @JsonClass(generateAdapter = true)
 data class EpisodeWizardReviseRequest(
-    @Json(name = "draft") val draft: EpisodeDraft,
+    @Json(name = "suggestions") val suggestions: List<EpisodeSuggestion>,
+    @Json(name = "length") val length: String,
+    @Json(name = "targetSuggestionIndex") val targetSuggestionIndex: Int,
+    @Json(name = "targetEpisodeIndex") val targetEpisodeIndex: Int? = null,
     @Json(name = "instruction") val instruction: String
 )
 
 @JsonClass(generateAdapter = true)
-data class CreateEpisodeRequest(
+data class EpisodeCreateInput(
     @Json(name = "title") val title: String,
     @Json(name = "topics") val topics: String,
     @Json(name = "length") val length: String, // "short" | "medium" | "long"
     @Json(name = "sourceIds") val sourceIds: List<String>,
     @Json(name = "participantHostIds") val participantHostIds: List<String>,
     @Json(name = "guests") val guests: List<EpisodeGuest> = emptyList(),
-    @Json(name = "productionNotes") val productionNotes: String = ""
+    @Json(name = "productionNotes") val productionNotes: String
+)
+
+// Confirm always takes a whole suggestion's episodes array (1 entry, or 2 for
+// a split) in one request; the server creates and sequences them.
+@JsonClass(generateAdapter = true)
+data class CreateEpisodeRequest(
+    @Json(name = "episodes") val episodes: List<EpisodeCreateInput>
+)
+
+@JsonClass(generateAdapter = true)
+data class CreateEpisodeResponse(
+    @Json(name = "episodes") val episodes: List<Episode>
 )
 
 @JsonClass(generateAdapter = true)

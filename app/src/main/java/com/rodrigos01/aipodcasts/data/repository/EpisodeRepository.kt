@@ -4,9 +4,9 @@ import com.rodrigos01.aipodcasts.data.api.ApiClient
 import com.rodrigos01.aipodcasts.data.api.PodcastApiService
 import com.rodrigos01.aipodcasts.data.model.CreateEpisodeRequest
 import com.rodrigos01.aipodcasts.data.model.Episode
-import com.rodrigos01.aipodcasts.data.model.EpisodeDraft
-import com.rodrigos01.aipodcasts.data.model.EpisodeGuest
+import com.rodrigos01.aipodcasts.data.model.EpisodeCreateInput
 import com.rodrigos01.aipodcasts.data.model.EpisodeStatusResponse
+import com.rodrigos01.aipodcasts.data.model.EpisodeSuggestion
 import com.rodrigos01.aipodcasts.data.model.EpisodeWizardOptionsRequest
 import com.rodrigos01.aipodcasts.data.model.EpisodeWizardReviseRequest
 import com.rodrigos01.aipodcasts.data.model.UpdateEpisodeRequest
@@ -15,48 +15,48 @@ class EpisodeRepository(
     private val api: PodcastApiService = ApiClient.apiService
 ) {
 
-    suspend fun generateEpisodeDraft(
+    suspend fun generateEpisodeSuggestions(
         podcastId: String,
         sourceIds: List<String>,
-        prompt: String? = null
-    ): EpisodeDraft {
-        val request = EpisodeWizardOptionsRequest(sourceIds = sourceIds, prompt = prompt)
-        return api.generateEpisodeDraft(podcastId, request).draft
-    }
-
-    suspend fun reviseEpisodeDraft(
-        podcastId: String,
-        draft: EpisodeDraft,
-        instruction: String
-    ): EpisodeDraft {
-        val request = EpisodeWizardReviseRequest(draft = draft, instruction = instruction)
-        return api.reviseEpisodeDraft(podcastId, request).draft
-    }
-
-    suspend fun createEpisode(
-        podcastId: String,
-        title: String,
-        topics: String,
         length: String,
-        sourceIds: List<String>,
-        participantHostIds: List<String>,
-        guests: List<EpisodeGuest>,
-        productionNotes: String
-    ): Episode {
-        require(participantHostIds.size + guests.size == 2) {
-            "An episode must have exactly 2 speakers (2 hosts or 1 host + 1 guest)"
-        }
+        prompt: String? = null
+    ): List<EpisodeSuggestion> {
+        val request = EpisodeWizardOptionsRequest(sourceIds = sourceIds, prompt = prompt, length = length)
+        return api.generateEpisodeSuggestions(podcastId, request).suggestions
+    }
 
-        val request = CreateEpisodeRequest(
-            title = title,
-            topics = topics,
+    suspend fun reviseEpisodeSuggestions(
+        podcastId: String,
+        suggestions: List<EpisodeSuggestion>,
+        length: String,
+        targetSuggestionIndex: Int,
+        targetEpisodeIndex: Int? = null,
+        instruction: String
+    ): List<EpisodeSuggestion> {
+        val request = EpisodeWizardReviseRequest(
+            suggestions = suggestions,
             length = length,
-            sourceIds = sourceIds,
-            participantHostIds = participantHostIds,
-            guests = guests,
-            productionNotes = productionNotes
+            targetSuggestionIndex = targetSuggestionIndex,
+            targetEpisodeIndex = targetEpisodeIndex,
+            instruction = instruction
         )
-        return api.createEpisode(podcastId, request)
+        return api.reviseEpisodeSuggestions(podcastId, request).suggestions
+    }
+
+    // Confirms a whole suggestion at once: 1 entry for a single episode, or 2
+    // for a confirmed split. Each entry must independently satisfy the
+    // 2-speaker rule.
+    suspend fun createEpisodes(
+        podcastId: String,
+        episodes: List<EpisodeCreateInput>
+    ): List<Episode> {
+        episodes.forEach { episode ->
+            require(episode.participantHostIds.size + episode.guests.size == 2) {
+                "Every episode must have exactly 2 speakers (2 hosts or 1 host + 1 guest)"
+            }
+        }
+        val request = CreateEpisodeRequest(episodes = episodes)
+        return api.createEpisodes(podcastId, request).episodes
     }
 
     suspend fun getEpisodes(podcastId: String): List<Episode> {
