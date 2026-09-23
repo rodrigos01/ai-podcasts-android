@@ -1,4 +1,5 @@
 import java.io.ByteArrayOutputStream
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -27,9 +28,27 @@ fun gitOutput(vararg args: String): String = try {
 val gitShortHash = gitOutput("rev-parse", "--short", "HEAD").ifBlank { "unknown" }
 val gitCommitMessage = gitOutput("log", "-1", "--pretty=%B").trim().ifBlank { "No release notes available." }
 
+// Release signing: storePassword/keyAlias/keyPassword come from local.properties, the keystore
+// file sits next to this build file. Both are fetched from GCS (see .github/workflows) rather
+// than committed - debug builds are untouched and keep using the auto-generated debug keystore.
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+
 android {
     namespace = "com.rodrigos01.aipodcasts"
     compileSdk = 35
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("ai-audio-book-keystore")
+            storePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD")
+            keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS")
+            keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD")
+        }
+    }
 
     defaultConfig {
         applicationId = "com.rodrigos01.aipodcasts"
@@ -51,7 +70,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             versionNameSuffix = "-$gitShortHash"
             firebaseAppDistribution {
                 serviceCredentialsFile = "app/ai-audio-book-2c2ff064ff10.json"
