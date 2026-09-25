@@ -1,6 +1,7 @@
 package com.rodrigos01.aipodcasts.ui.screens.detail
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.data.model.Episode
@@ -10,8 +11,11 @@ import com.rodrigos01.aipodcasts.data.repository.EpisodeRepository
 import com.rodrigos01.aipodcasts.data.repository.PodcastRepository
 import com.rodrigos01.aipodcasts.data.repository.SourceRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class PodcastDetailUiState(
@@ -24,76 +28,102 @@ data class PodcastDetailUiState(
     val errorMessage: String? = null
 )
 
+private data class PodcastDetailInternalState(
+    val selectedTab: Int = 0,
+    val episodeToDelete: Episode? = null,
+    val errorMessage: String? = null
+)
+
 class PodcastDetailViewModel(
+    val podcastId: String,
     private val podcastRepo: PodcastRepository = AIPodcastsApplication.instance.podcastRepository,
     private val episodeRepo: EpisodeRepository = AIPodcastsApplication.instance.episodeRepository,
     private val sourceRepo: SourceRepository = AIPodcastsApplication.instance.sourceRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(PodcastDetailUiState())
-    val uiState: StateFlow<PodcastDetailUiState> = _uiState.asStateFlow()
+    private val _internalState = MutableStateFlow(PodcastDetailInternalState())
 
-    fun loadPodcast(podcastId: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            try {
-                val podcast = podcastRepo.getPodcast(podcastId)
-                val episodes = try { episodeRepo.getEpisodes(podcastId) } catch (e: Exception) { emptyList() }
-                val sources = try { sourceRepo.getSources(podcastId) } catch (e: Exception) { emptyList() }
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    podcast = podcast,
-                    episodes = episodes,
-                    sources = sources
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    errorMessage = e.localizedMessage ?: e.message
-                )
-            }
-        }
-    }
+    val uiState: StateFlow<PodcastDetailUiState> = combine(
+        podcastRepo.getPodcastFlow(podcastId).catch { e ->
+            _internalState.value = _internalState.value.copy(errorMessage = e.localizedMessage ?: e.message)
+            emit(null)
+        },
+        episodeRepo.getEpisodesFlow(podcastId).catch { e ->
+            _internalState.value = _internalState.value.copy(errorMessage = e.localizedMessage ?: e.message)
+            emit(emptyList())
+        },
+        sourceRepo.getSourcesFlow(podcastId).catch { e ->
+            _internalState.value = _internalState.value.copy(errorMessage = e.localizedMessage ?: e.message)
+            emit(emptyList())
+        },
+        _internalState
+    ) { podcast, episodes, sources, internal ->
+        PodcastDetailUiState(
+            isLoading = false,
+            podcast = podcast,
+            episodes = episodes,
+            sources = sources,
+            selectedTab = internal.selectedTab,
+            episodeToDelete = internal.episodeToDelete,
+            errorMessage = internal.errorMessage
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = PodcastDetailUiState(isLoading = true)
+    )
 
     fun selectTab(index: Int) {
-        _uiState.value = _uiState.value.copy(selectedTab = index)
+        _internalState.value = _internalState.value.copy(selectedTab = index)
     }
 
-    fun deleteSource(podcastId: String, sourceId: String) {
+    fun deleteSource(sourceId: String) {
         viewModelScope.launch {
             try {
                 sourceRepo.deleteSource(podcastId, sourceId)
-                _uiState.value = _uiState.value.copy(
-                    sources = _uiState.value.sources.filter { it.id != sourceId }
-                )
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(errorMessage = e.localizedMessage ?: e.message)
+                _internalState.value = _internalState.value.copy(errorMessage = e.localizedMessage ?: e.message)
             }
         }
     }
 
+    fun deleteSource(podcastId: String, sourceId: String) = deleteSource(sourceId)
+
     fun promptDeleteEpisode(episode: Episode) {
-        _uiState.value = _uiState.value.copy(episodeToDelete = episode)
+        _internalState.value = _internalState.value.copy(episodeToDelete = episode)
     }
 
     fun dismissDeleteEpisodeDialog() {
-        _uiState.value = _uiState.value.copy(episodeToDelete = null)
+        _internalState.value = _internalState.value.copy(episodeToDelete = null)
     }
 
-    fun confirmDeleteEpisode(podcastId: String) {
-        val episode = _uiState.value.episodeToDelete ?: return
+    fun confirmDeleteEpisode() {
+        val episode = _internalState.value.episodeToDelete ?: return
         viewModelScope.launch {
             try {
                 episodeRepo.deleteEpisode(podcastId, episode.id)
-                _uiState.value = _uiState.value.copy(
-                    episodeToDelete = null,
-                    episodes = _uiState.value.episodes.filter { it.id != episode.id }
-                )
+                _internalState.value = _internalState.value.copy(episodeToDelete = null)
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
+                _internalState.value = _internalState.value.copy(
                     episodeToDelete = null,
                     errorMessage = e.localizedMessage ?: e.message
                 )
+            }
+        }
+    }
+
+    fun confirmDeleteEpisode(podcastId: String) = confirmDeleteEpisode()
+
+    companion object {
+        fun provideFactory(
+            podcastId: String,
+            podcastRepo: PodcastRepository = AIPodcastsApplication.instance.podcastRepository,
+            episodeRepo: EpisodeRepository = AIPodcastsApplication.instance.episodeRepository,
+            sourceRepo: SourceRepository = AIPodcastsApplication.instance.sourceRepository
+        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return PodcastDetailViewModel(podcastId, podcastRepo, episodeRepo, sourceRepo) as T
             }
         }
     }

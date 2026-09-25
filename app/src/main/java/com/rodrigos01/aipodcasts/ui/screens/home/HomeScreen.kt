@@ -25,7 +25,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,9 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -66,30 +63,23 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    LaunchedEffect(Unit) {
-        viewModel.loadPodcasts()
-    }
-
     HomeScreen(
         uiState = uiState,
         onNavigateToWizard = onNavigateToWizard,
         onNavigateToDetail = onNavigateToDetail,
         onNavigateToSettings = onNavigateToSettings,
-        onRefresh = { viewModel.loadPodcasts() },
         onDeletePodcast = { viewModel.promptDeletePodcast(it) },
         onDismissDeleteDialog = { viewModel.dismissDeleteDialog() },
         onConfirmDeletePodcast = { viewModel.confirmDeletePodcast() }
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeScreen(
     uiState: HomeUiState,
     onNavigateToWizard: () -> Unit,
     onNavigateToDetail: (String) -> Unit,
     onNavigateToSettings: () -> Unit,
-    onRefresh: () -> Unit,
     onDeletePodcast: (Podcast) -> Unit,
     onDismissDeleteDialog: () -> Unit,
     onConfirmDeletePodcast: () -> Unit
@@ -110,9 +100,7 @@ private fun HomeScreen(
                 }
             )
 
-            PullToRefreshBox(
-                isRefreshing = uiState.isLoading,
-                onRefresh = onRefresh,
+            Box(
                 modifier = Modifier.fillMaxSize()
             ) {
                 when {
@@ -289,7 +277,6 @@ fun HomeScreenEmptyPreview() {
             onNavigateToWizard = {},
             onNavigateToDetail = {},
             onNavigateToSettings = {},
-            onRefresh = {},
             onDeletePodcast = {},
             onDismissDeleteDialog = {},
             onConfirmDeletePodcast = {}
@@ -328,7 +315,6 @@ fun HomeScreenPopulatedPreview() {
             onNavigateToWizard = {},
             onNavigateToDetail = {},
             onNavigateToSettings = {},
-            onRefresh = {},
             onDeletePodcast = {},
             onDismissDeleteDialog = {},
             onConfirmDeletePodcast = {}

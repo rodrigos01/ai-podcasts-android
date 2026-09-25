@@ -3,6 +3,8 @@ package com.rodrigos01.aipodcasts
 import android.app.Application
 import androidx.media3.common.util.UnstableApi
 import com.google.firebase.FirebaseApp
+import com.google.firebase.firestore.FirebaseFirestore
+import com.rodrigos01.aipodcasts.data.firestore.PodcastFirestoreDataSource
 import com.rodrigos01.aipodcasts.data.repository.AuthRepository
 import com.rodrigos01.aipodcasts.data.repository.EpisodeRepository
 import com.rodrigos01.aipodcasts.data.repository.PlaybackPositionRepository
@@ -41,11 +43,14 @@ class AIPodcastsApplication : Application() {
 
         FirebaseApp.initializeApp(this)
 
+        val firestore = FirebaseFirestore.getInstance(FirebaseApp.getInstance(), "podcasts")
+        val firestoreDataSource = PodcastFirestoreDataSource(firestore)
+
         settingsRepository = SettingsRepository(this)
         authRepository = AuthRepository()
-        podcastRepository = PodcastRepository()
-        sourceRepository = SourceRepository()
-        episodeRepository = EpisodeRepository()
+        podcastRepository = PodcastRepository(firestoreDataSource = firestoreDataSource)
+        sourceRepository = SourceRepository(firestoreDataSource = firestoreDataSource)
+        episodeRepository = EpisodeRepository(firestoreDataSource = firestoreDataSource)
         playbackPositionRepository = PlaybackPositionRepository(this)
         audioController = PodcastAudioController(this, playbackPositionRepository, episodeRepository)
     }

@@ -13,9 +13,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.ui.components.PlayerScaffold
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rodrigos01.aipodcasts.ui.screens.auth.AuthScreen
 import com.rodrigos01.aipodcasts.ui.screens.detail.PodcastDetailScreen
+import com.rodrigos01.aipodcasts.ui.screens.detail.PodcastDetailViewModel
 import com.rodrigos01.aipodcasts.ui.screens.episode.EpisodeDetailScreen
+import com.rodrigos01.aipodcasts.ui.screens.episode.EpisodeDetailViewModel
 import com.rodrigos01.aipodcasts.ui.screens.episode.EpisodeWizardScreen
 import com.rodrigos01.aipodcasts.ui.screens.home.HomeScreen
 import com.rodrigos01.aipodcasts.ui.screens.settings.SettingsScreen
@@ -89,7 +92,10 @@ fun PodcastNavGraph(
                     },
                     onNavigateToEpisodeDetail = { pId, eId ->
                         navController.navigate(Screen.EpisodeDetail.createRoute(pId, eId))
-                    }
+                    },
+                    viewModel = viewModel(
+                        factory = PodcastDetailViewModel.provideFactory(podcastId)
+                    )
                 )
             }
 
@@ -121,7 +127,10 @@ fun PodcastNavGraph(
                 EpisodeDetailScreen(
                     podcastId = podcastId,
                     episodeId = episodeId,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    viewModel = viewModel(
+                        factory = EpisodeDetailViewModel.provideFactory(podcastId, episodeId)
+                    )
                 )
             }
 

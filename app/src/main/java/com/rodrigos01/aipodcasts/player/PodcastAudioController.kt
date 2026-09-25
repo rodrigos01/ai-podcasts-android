@@ -193,26 +193,16 @@ class PodcastAudioController(
         progressJob?.cancel()
     }
 
-    private fun startStatusPolling(podcastId: String, episodeId: String) {
+    private fun observeEpisodeAudioProgress(podcastId: String, episodeId: String) {
         statusPollJob?.cancel()
         statusPollJob = scope.launch {
-            while (isActive) {
-                try {
-                    val status = episodeRepository.getEpisodeStatus(podcastId, episodeId)
-                    _generatedAudioSeconds.value = status.generatedAudioSeconds
-                    // `status` here is the script/transcript pipeline, which finishes before
-                    // audio synthesis even starts (it's triggered on-demand by the first stream
-                    // request). So don't stop refreshing generatedAudioSeconds just because the
-                    // script is "ready" - audio can still be actively catching up well after
-                    // that. Only a confirmed failure, or the stream itself coming back complete,
-                    // means there's nothing left worth polling for.
-                    if (status.status.equals("failed", ignoreCase = true) || isCurrentStreamFullyGenerated()) {
-                        break
+            episodeRepository.getEpisodeFlow(podcastId, episodeId).collect { episode ->
+                if (episode != null) {
+                    _generatedAudioSeconds.value = episode.generatedAudioSeconds
+                    if (episode.status.equals("failed", ignoreCase = true) || isCurrentStreamFullyGenerated()) {
+                        statusPollJob?.cancel()
                     }
-                } catch (e: Exception) {
-                    // Keep polling despite transient network errors
                 }
-                delay(3000)
             }
         }
     }
@@ -240,7 +230,7 @@ class PodcastAudioController(
         currentPodcastId = podcastId
         currentIdToken = idToken
         _generatedAudioSeconds.value = null
-        startStatusPolling(podcastId, episode.id)
+        observeEpisodeAudioProgress(podcastId, episode.id)
 
         val savedPosMs = if (forceFromBeginning) 0L else playbackPositionRepository.getPositionMs(episode.id)
         val shouldResume = savedPosMs >= 3000L

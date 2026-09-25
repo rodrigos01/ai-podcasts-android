@@ -70,13 +70,9 @@ fun PodcastDetailScreen(
     onNavigateBack: () -> Unit,
     onNavigateToEpisodeWizard: (String) -> Unit,
     onNavigateToEpisodeDetail: (String, String) -> Unit,
-    viewModel: PodcastDetailViewModel = viewModel()
+    viewModel: PodcastDetailViewModel = viewModel(factory = PodcastDetailViewModel.provideFactory(podcastId))
 ) {
     val uiState by viewModel.uiState.collectAsState()
-
-    LaunchedEffect(podcastId) {
-        viewModel.loadPodcast(podcastId)
-    }
 
     PodcastDetailScreen(
         uiState = uiState,
@@ -84,10 +80,10 @@ fun PodcastDetailScreen(
         onNavigateToEpisodeWizard = { onNavigateToEpisodeWizard(podcastId) },
         onNavigateToEpisodeDetail = { episodeId -> onNavigateToEpisodeDetail(podcastId, episodeId) },
         onTabSelected = { viewModel.selectTab(it) },
-        onDeleteSource = { sourceId -> viewModel.deleteSource(podcastId, sourceId) },
+        onDeleteSource = { sourceId -> viewModel.deleteSource(sourceId) },
         onPromptDeleteEpisode = { viewModel.promptDeleteEpisode(it) },
         onDismissDeleteEpisodeDialog = { viewModel.dismissDeleteEpisodeDialog() },
-        onConfirmDeleteEpisode = { viewModel.confirmDeleteEpisode(podcastId) }
+        onConfirmDeleteEpisode = { viewModel.confirmDeleteEpisode() }
     )
 }
 

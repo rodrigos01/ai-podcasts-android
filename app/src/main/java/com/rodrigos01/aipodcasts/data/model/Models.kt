@@ -208,7 +208,9 @@ data class Episode(
     @Json(name = "progress") val progress: EpisodeProgress? = null,
     @Json(name = "transcript") val transcript: Any? = null,
     @Json(name = "ttsPrompt") val ttsPrompt: String? = null,
-    @Json(name = "error") val error: String? = null
+    @Json(name = "error") val error: String? = null,
+    @Json(name = "generatedAudioSeconds") val generatedAudioSeconds: Double? = null,
+    @Json(name = "createdAt") val createdAt: Any? = null
 )
 
 @JsonClass(generateAdapter = true)

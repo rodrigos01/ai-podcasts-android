@@ -5,22 +5,41 @@ import com.rodrigos01.aipodcasts.data.api.PodcastApiService
 import com.rodrigos01.aipodcasts.data.model.CreateDriveSourceRequest
 import com.rodrigos01.aipodcasts.data.model.CreateSourceRequest
 import com.rodrigos01.aipodcasts.data.model.Source
+import com.google.firebase.FirebaseApp
+import com.google.firebase.firestore.FirebaseFirestore
+import com.rodrigos01.aipodcasts.data.firestore.PodcastFirestoreDataSource
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 
+import kotlinx.coroutines.flow.Flow
+
 class SourceRepository(
-    private val api: PodcastApiService = ApiClient.apiService
+    private val api: PodcastApiService = ApiClient.apiService,
+    private val firestoreDataSource: PodcastFirestoreDataSource? = null
 ) {
+    private val querySource: PodcastFirestoreDataSource
+        get() = firestoreDataSource ?: PodcastFirestoreDataSource(
+            FirebaseFirestore.getInstance(FirebaseApp.getInstance(), "podcasts")
+        )
+
+    constructor(
+        api: PodcastApiService = ApiClient.apiService,
+        firestore: FirebaseFirestore
+    ) : this(api, PodcastFirestoreDataSource(firestore))
+
+    fun getSourcesFlow(podcastId: String): Flow<List<Source>> {
+        return querySource.getSourcesFlow(podcastId)
+    }
 
     suspend fun getSources(podcastId: String): List<Source> {
-        return api.getSources(podcastId)
+        return querySource.getSources(podcastId)
     }
 
     suspend fun getSource(podcastId: String, sourceId: String): Source {
-        return api.getSource(podcastId, sourceId)
+        return querySource.getSource(podcastId, sourceId)
     }
 
     suspend fun createTextSource(

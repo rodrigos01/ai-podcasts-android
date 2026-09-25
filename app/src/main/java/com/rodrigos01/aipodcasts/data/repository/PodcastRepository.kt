@@ -11,9 +11,25 @@ import com.rodrigos01.aipodcasts.data.model.PodcastWizardReviseRequest
 import com.rodrigos01.aipodcasts.data.model.UpdatePodcastRequest
 import com.rodrigos01.aipodcasts.data.model.Voice
 
+import com.google.firebase.FirebaseApp
+import com.google.firebase.firestore.FirebaseFirestore
+import com.rodrigos01.aipodcasts.data.firestore.PodcastFirestoreDataSource
+
+import kotlinx.coroutines.flow.Flow
+
 class PodcastRepository(
-    private val api: PodcastApiService = ApiClient.apiService
+    private val api: PodcastApiService = ApiClient.apiService,
+    private val firestoreDataSource: PodcastFirestoreDataSource? = null
 ) {
+    private val querySource: PodcastFirestoreDataSource
+        get() = firestoreDataSource ?: PodcastFirestoreDataSource(
+            FirebaseFirestore.getInstance(FirebaseApp.getInstance(), "podcasts")
+        )
+
+    constructor(
+        api: PodcastApiService = ApiClient.apiService,
+        firestore: FirebaseFirestore
+    ) : this(api, PodcastFirestoreDataSource(firestore))
 
     suspend fun checkHealth(): Boolean {
         return try {
@@ -28,12 +44,20 @@ class PodcastRepository(
         return api.getVoices()
     }
 
+    fun getPodcastsFlow(): Flow<List<Podcast>> {
+        return querySource.getPodcastsFlow()
+    }
+
+    fun getPodcastFlow(id: String): Flow<Podcast?> {
+        return querySource.getPodcastFlow(id)
+    }
+
     suspend fun getPodcasts(): List<Podcast> {
-        return api.getPodcasts()
+        return querySource.getPodcasts()
     }
 
     suspend fun getPodcast(id: String): Podcast {
-        return api.getPodcast(id)
+        return querySource.getPodcast(id)
     }
 
     suspend fun generatePodcastOptions(

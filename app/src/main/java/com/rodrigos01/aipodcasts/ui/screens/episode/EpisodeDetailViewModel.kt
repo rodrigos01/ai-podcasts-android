@@ -1,6 +1,7 @@
 package com.rodrigos01.aipodcasts.ui.screens.episode
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.data.model.Episode
@@ -11,12 +12,12 @@ import com.rodrigos01.aipodcasts.data.repository.EpisodeRepository
 import com.rodrigos01.aipodcasts.data.repository.PlaybackPositionRepository
 import com.rodrigos01.aipodcasts.data.repository.PodcastRepository
 import com.rodrigos01.aipodcasts.player.PodcastAudioController
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class EpisodeDetailUiState(
@@ -34,7 +35,18 @@ data class EpisodeDetailUiState(
     val isDeleted: Boolean = false
 )
 
+private data class EpisodeDetailInternalFlags(
+    val isRegenerating: Boolean = false,
+    val showDeleteConfirm: Boolean = false,
+    val isDeleting: Boolean = false,
+    val isDeleted: Boolean = false,
+    val errorMessage: String? = null,
+    val savedPositionMs: Long = 0L
+)
+
 class EpisodeDetailViewModel(
+    val podcastId: String,
+    val episodeId: String,
     private val podcastRepo: PodcastRepository = AIPodcastsApplication.instance.podcastRepository,
     private val episodeRepo: EpisodeRepository = AIPodcastsApplication.instance.episodeRepository,
     private val authRepo: AuthRepository = AIPodcastsApplication.instance.authRepository,
@@ -42,87 +54,52 @@ class EpisodeDetailViewModel(
     private val playbackPositionRepo: PlaybackPositionRepository = AIPodcastsApplication.instance.playbackPositionRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(EpisodeDetailUiState())
-    val uiState: StateFlow<EpisodeDetailUiState> = _uiState.asStateFlow()
+    private val _flags = MutableStateFlow(
+        EpisodeDetailInternalFlags(
+            savedPositionMs = playbackPositionRepo.getPositionMs(episodeId)
+        )
+    )
 
-    private var pollJob: Job? = null
-
-    fun loadEpisode(podcastId: String, episodeId: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            try {
-                val podcast = podcastRepo.getPodcast(podcastId)
-                val ep = episodeRepo.getEpisode(podcastId, episodeId)
-                val savedPos = playbackPositionRepo.getPositionMs(episodeId)
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    podcast = podcast,
-                    episode = ep,
-                    status = ep.status,
-                    progress = ep.progress,
-                    savedPositionMs = savedPos
-                )
-
-                if (ep.status.equals("generating", ignoreCase = true) ||
-                    ep.status.equals("streamable", ignoreCase = true)
-                ) {
-                    startStatusPolling(podcastId, episodeId)
-                }
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    errorMessage = e.localizedMessage ?: e.message
-                )
-            }
-        }
-    }
-
-    private fun startStatusPolling(podcastId: String, episodeId: String) {
-        pollJob?.cancel()
-        pollJob = viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isPolling = true)
-            while (isActive) {
-                delay(3000)
-                try {
-                    val statusRes = episodeRepo.getEpisodeStatus(podcastId, episodeId)
-                    _uiState.value = _uiState.value.copy(
-                        status = statusRes.status,
-                        progress = statusRes.progress
-                    )
-
-                    if (statusRes.status.equals("ready", ignoreCase = true)) {
-                        // Fetch full episode for transcript
-                        val fullEp = episodeRepo.getEpisode(podcastId, episodeId)
-                        _uiState.value = _uiState.value.copy(
-                            episode = fullEp,
-                            status = "ready",
-                            isPolling = false
-                        )
-                        break
-                    } else if (statusRes.status.equals("failed", ignoreCase = true)) {
-                        _uiState.value = _uiState.value.copy(
-                            isPolling = false,
-                            errorMessage = statusRes.error ?: "Generation failed"
-                        )
-                        break
-                    }
-                } catch (e: Exception) {
-                    // Continue polling even on intermittent network error
-                }
-            }
-        }
-    }
+    val uiState: StateFlow<EpisodeDetailUiState> = combine(
+        podcastRepo.getPodcastFlow(podcastId).catch { e ->
+            _flags.value = _flags.value.copy(errorMessage = e.localizedMessage ?: e.message)
+            emit(null)
+        },
+        episodeRepo.getEpisodeFlow(podcastId, episodeId).catch { e ->
+            _flags.value = _flags.value.copy(errorMessage = e.localizedMessage ?: e.message)
+            emit(null)
+        },
+        _flags
+    ) { podcast, episode, flags ->
+        EpisodeDetailUiState(
+            isLoading = false,
+            podcast = podcast,
+            episode = episode,
+            status = episode?.status ?: "generating",
+            progress = episode?.progress,
+            isPolling = false,
+            isRegenerating = flags.isRegenerating,
+            errorMessage = flags.errorMessage ?: episode?.error,
+            savedPositionMs = flags.savedPositionMs,
+            showDeleteConfirm = flags.showDeleteConfirm,
+            isDeleting = flags.isDeleting,
+            isDeleted = flags.isDeleted
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = EpisodeDetailUiState(isLoading = true)
+    )
 
     fun refreshSavedPosition() {
-        val epId = _uiState.value.episode?.id ?: return
-        _uiState.value = _uiState.value.copy(
-            savedPositionMs = playbackPositionRepo.getPositionMs(epId)
+        _flags.value = _flags.value.copy(
+            savedPositionMs = playbackPositionRepo.getPositionMs(episodeId)
         )
     }
 
     fun playAudio(forceFromBeginning: Boolean = false) {
-        val ep = _uiState.value.episode ?: return
-        val podcast = _uiState.value.podcast
+        val ep = uiState.value.episode ?: return
+        val podcast = uiState.value.podcast
 
         // If this episode is already active in player and we're not forcing restart, simply toggle play
         if (!forceFromBeginning && audioController.currentEpisode.value?.id == ep.id) {
@@ -145,19 +122,14 @@ class EpisodeDetailViewModel(
         }
     }
 
-    fun regenerate(podcastId: String, episodeId: String) {
+    fun regenerate(pId: String = podcastId, epId: String = episodeId) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isRegenerating = true, errorMessage = null)
+            _flags.value = _flags.value.copy(isRegenerating = true, errorMessage = null)
             try {
-                val ep = episodeRepo.regenerateEpisode(podcastId, episodeId)
-                _uiState.value = _uiState.value.copy(
-                    isRegenerating = false,
-                    episode = ep,
-                    status = ep.status
-                )
-                startStatusPolling(podcastId, episodeId)
+                episodeRepo.regenerateEpisode(pId, epId)
+                _flags.value = _flags.value.copy(isRegenerating = false)
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
+                _flags.value = _flags.value.copy(
                     isRegenerating = false,
                     errorMessage = e.localizedMessage ?: e.message
                 )
@@ -166,25 +138,25 @@ class EpisodeDetailViewModel(
     }
 
     fun promptDelete() {
-        _uiState.value = _uiState.value.copy(showDeleteConfirm = true)
+        _flags.value = _flags.value.copy(showDeleteConfirm = true)
     }
 
     fun dismissDeleteConfirm() {
-        _uiState.value = _uiState.value.copy(showDeleteConfirm = false)
+        _flags.value = _flags.value.copy(showDeleteConfirm = false)
     }
 
-    fun confirmDelete(podcastId: String, episodeId: String) {
+    fun confirmDelete(pId: String = podcastId, epId: String = episodeId) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isDeleting = true)
+            _flags.value = _flags.value.copy(isDeleting = true)
             try {
-                episodeRepo.deleteEpisode(podcastId, episodeId)
-                _uiState.value = _uiState.value.copy(
+                episodeRepo.deleteEpisode(pId, epId)
+                _flags.value = _flags.value.copy(
                     isDeleting = false,
                     showDeleteConfirm = false,
                     isDeleted = true
                 )
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
+                _flags.value = _flags.value.copy(
                     isDeleting = false,
                     showDeleteConfirm = false,
                     errorMessage = e.localizedMessage ?: e.message
@@ -193,8 +165,28 @@ class EpisodeDetailViewModel(
         }
     }
 
-    override fun onCleared() {
-        pollJob?.cancel()
-        super.onCleared()
+    companion object {
+        fun provideFactory(
+            podcastId: String,
+            episodeId: String,
+            podcastRepo: PodcastRepository = AIPodcastsApplication.instance.podcastRepository,
+            episodeRepo: EpisodeRepository = AIPodcastsApplication.instance.episodeRepository,
+            authRepo: AuthRepository = AIPodcastsApplication.instance.authRepository,
+            audioController: PodcastAudioController = AIPodcastsApplication.instance.audioController,
+            playbackPositionRepo: PlaybackPositionRepository = AIPodcastsApplication.instance.playbackPositionRepository
+        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return EpisodeDetailViewModel(
+                    podcastId,
+                    episodeId,
+                    podcastRepo,
+                    episodeRepo,
+                    authRepo,
+                    audioController,
+                    playbackPositionRepo
+                ) as T
+            }
+        }
     }
 }

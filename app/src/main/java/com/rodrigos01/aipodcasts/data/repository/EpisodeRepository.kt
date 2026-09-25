@@ -11,9 +11,25 @@ import com.rodrigos01.aipodcasts.data.model.EpisodeWizardOptionsRequest
 import com.rodrigos01.aipodcasts.data.model.EpisodeWizardReviseRequest
 import com.rodrigos01.aipodcasts.data.model.UpdateEpisodeRequest
 
+import com.google.firebase.FirebaseApp
+import com.google.firebase.firestore.FirebaseFirestore
+import com.rodrigos01.aipodcasts.data.firestore.PodcastFirestoreDataSource
+
+import kotlinx.coroutines.flow.Flow
+
 class EpisodeRepository(
-    private val api: PodcastApiService = ApiClient.apiService
+    private val api: PodcastApiService = ApiClient.apiService,
+    private val firestoreDataSource: PodcastFirestoreDataSource? = null
 ) {
+    private val querySource: PodcastFirestoreDataSource
+        get() = firestoreDataSource ?: PodcastFirestoreDataSource(
+            FirebaseFirestore.getInstance(FirebaseApp.getInstance(), "podcasts")
+        )
+
+    constructor(
+        api: PodcastApiService = ApiClient.apiService,
+        firestore: FirebaseFirestore
+    ) : this(api, PodcastFirestoreDataSource(firestore))
 
     suspend fun generateEpisodeSuggestions(
         podcastId: String,
@@ -59,16 +75,24 @@ class EpisodeRepository(
         return api.createEpisodes(podcastId, request).episodes
     }
 
+    fun getEpisodesFlow(podcastId: String): Flow<List<Episode>> {
+        return querySource.getEpisodesFlow(podcastId)
+    }
+
+    fun getEpisodeFlow(podcastId: String, episodeId: String): Flow<Episode?> {
+        return querySource.getEpisodeFlow(podcastId, episodeId)
+    }
+
     suspend fun getEpisodes(podcastId: String): List<Episode> {
-        return api.getEpisodes(podcastId)
+        return querySource.getEpisodes(podcastId)
     }
 
     suspend fun getEpisode(podcastId: String, episodeId: String): Episode {
-        return api.getEpisode(podcastId, episodeId)
+        return querySource.getEpisode(podcastId, episodeId)
     }
 
     suspend fun getEpisodeStatus(podcastId: String, episodeId: String): EpisodeStatusResponse {
-        return api.getEpisodeStatus(podcastId, episodeId)
+        return querySource.getEpisodeStatus(podcastId, episodeId)
     }
 
     suspend fun updateEpisode(

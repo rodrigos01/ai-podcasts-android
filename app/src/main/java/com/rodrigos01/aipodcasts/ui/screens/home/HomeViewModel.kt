@@ -6,8 +6,11 @@ import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.data.repository.PodcastRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class HomeUiState(
@@ -21,50 +24,46 @@ class HomeViewModel(
     private val podcastRepo: PodcastRepository = AIPodcastsApplication.instance.podcastRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(HomeUiState())
-    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    private val _podcastToDelete = MutableStateFlow<Podcast?>(null)
+    private val _errorMessage = MutableStateFlow<String?>(null)
 
-    init {
-        loadPodcasts()
-    }
-
-    fun loadPodcasts() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            try {
-                val list = podcastRepo.getPodcasts()
-                _uiState.value = _uiState.value.copy(isLoading = false, podcasts = list)
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    errorMessage = e.localizedMessage ?: e.message
-                )
-            }
-        }
-    }
+    val uiState: StateFlow<HomeUiState> = combine(
+        podcastRepo.getPodcastsFlow().catch { e ->
+            _errorMessage.value = e.localizedMessage ?: e.message
+            emit(emptyList())
+        },
+        _podcastToDelete,
+        _errorMessage
+    ) { podcasts, toDelete, error ->
+        HomeUiState(
+            isLoading = false,
+            podcasts = podcasts,
+            podcastToDelete = toDelete,
+            errorMessage = error
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = HomeUiState(isLoading = true)
+    )
 
     fun promptDeletePodcast(podcast: Podcast) {
-        _uiState.value = _uiState.value.copy(podcastToDelete = podcast)
+        _podcastToDelete.value = podcast
     }
 
     fun dismissDeleteDialog() {
-        _uiState.value = _uiState.value.copy(podcastToDelete = null)
+        _podcastToDelete.value = null
     }
 
     fun confirmDeletePodcast() {
-        val podcast = _uiState.value.podcastToDelete ?: return
+        val podcast = _podcastToDelete.value ?: return
         viewModelScope.launch {
             try {
                 podcastRepo.deletePodcast(podcast.id)
-                _uiState.value = _uiState.value.copy(
-                    podcastToDelete = null,
-                    podcasts = _uiState.value.podcasts.filter { it.id != podcast.id }
-                )
+                _podcastToDelete.value = null
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    podcastToDelete = null,
-                    errorMessage = e.localizedMessage ?: e.message
-                )
+                _podcastToDelete.value = null
+                _errorMessage.value = e.localizedMessage ?: e.message
             }
         }
     }

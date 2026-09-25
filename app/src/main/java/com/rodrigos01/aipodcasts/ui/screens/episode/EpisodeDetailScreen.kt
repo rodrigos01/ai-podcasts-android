@@ -61,7 +61,9 @@ fun EpisodeDetailScreen(
     podcastId: String,
     episodeId: String,
     onNavigateBack: () -> Unit,
-    viewModel: EpisodeDetailViewModel = viewModel()
+    viewModel: EpisodeDetailViewModel = viewModel(
+        factory = EpisodeDetailViewModel.provideFactory(podcastId, episodeId)
+    )
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val audioController = AIPodcastsApplication.instance.audioController
@@ -70,7 +72,6 @@ fun EpisodeDetailScreen(
     val isPlaying by audioController.isPlaying.collectAsState()
 
     LaunchedEffect(podcastId, episodeId) {
-        viewModel.loadEpisode(podcastId, episodeId)
         viewModel.refreshSavedPosition()
     }
 
@@ -88,8 +89,8 @@ fun EpisodeDetailScreen(
         onNavigateBack = onNavigateBack,
         onDeleteClick = { viewModel.promptDelete() },
         onPlayAudio = { forceRestart -> viewModel.playAudio(forceRestart) },
-        onRegenerate = { viewModel.regenerate(podcastId, episodeId) },
-        onConfirmDelete = { viewModel.confirmDelete(podcastId, episodeId) },
+        onRegenerate = { viewModel.regenerate() },
+        onConfirmDelete = { viewModel.confirmDelete() },
         onDismissDelete = { viewModel.dismissDeleteConfirm() })
 }
 
