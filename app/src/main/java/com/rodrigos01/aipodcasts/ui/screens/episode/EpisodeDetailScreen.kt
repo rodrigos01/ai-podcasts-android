@@ -3,6 +3,7 @@ package com.rodrigos01.aipodcasts.ui.screens.episode
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,7 +29,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,10 +47,11 @@ import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.R
 import com.rodrigos01.aipodcasts.data.model.Episode
 import com.rodrigos01.aipodcasts.data.model.EpisodeGuest
-import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
+import com.rodrigos01.aipodcasts.ui.components.LocalContentPadding
 import com.rodrigos01.aipodcasts.ui.components.StatusBadge
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
+import com.rodrigos01.aipodcasts.ui.components.plus
 import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 
@@ -89,8 +90,7 @@ fun EpisodeDetailScreen(
         onPlayAudio = { forceRestart -> viewModel.playAudio(forceRestart) },
         onRegenerate = { viewModel.regenerate(podcastId, episodeId) },
         onConfirmDelete = { viewModel.confirmDelete(podcastId, episodeId) },
-        onDismissDelete = { viewModel.dismissDeleteConfirm() }
-    )
+        onDismissDelete = { viewModel.dismissDeleteConfirm() })
 }
 
 @UnstableApi
@@ -112,42 +112,37 @@ private fun EpisodeDetailScreen(
     val hasSavedProgress = currentPosition >= 3000L
     val formattedSavedTime = formatTimeMs(currentPosition)
 
-    Scaffold(
-        topBar = {
-            ExpressiveTopAppBar(
-                title = uiState.episode?.title ?: stringResource(R.string.episode_detail_title),
-                canNavigateBack = true,
-                onNavigateBack = onNavigateBack,
-                actions = {
-                    if (uiState.episode != null) {
-                        IconButton(onClick = onDeleteClick) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = stringResource(R.string.action_delete)
-                            )
-                        }
+    Column(modifier = Modifier.fillMaxSize()) {
+        ExpressiveTopAppBar(
+            title = uiState.episode?.title ?: stringResource(R.string.episode_detail_title),
+            canNavigateBack = true,
+            onNavigateBack = onNavigateBack,
+            actions = {
+                if (uiState.episode != null) {
+                    IconButton(onClick = onDeleteClick) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.action_delete)
+                        )
                     }
                 }
-            )
-        }
-    ) { padding ->
+            }
+        )
         val episode = uiState.episode
         if (uiState.isLoading && episode == null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding),
+                    .padding(LocalContentPadding.current),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator()
             }
         } else if (episode != null) {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = LocalContentPadding.current + PaddingValues(horizontal = 20.dp, vertical = 16.dp),
             ) {
                 item {
                     Card(
@@ -182,9 +177,12 @@ private fun EpisodeDetailScreen(
                                 )
                             }
 
-                            val isStillGenerating = uiState.status.equals("generating", ignoreCase = true)
-                            val isStreamable = uiState.status.equals("streamable", ignoreCase = true)
-                            val canPlay = isStreamable || uiState.status.equals("ready", ignoreCase = true)
+                            val isStillGenerating =
+                                uiState.status.equals("generating", ignoreCase = true)
+                            val isStreamable =
+                                uiState.status.equals("streamable", ignoreCase = true)
+                            val canPlay =
+                                isStreamable || uiState.status.equals("ready", ignoreCase = true)
                             if (isStillGenerating || isStreamable) {
                                 Spacer(modifier = Modifier.height(14.dp))
                                 LinearProgressIndicator(
@@ -198,14 +196,18 @@ private fun EpisodeDetailScreen(
                                 ) {
                                     val stage = uiState.progress?.stage ?: "Processing conversation"
                                     Text(
-                                        text = stringResource(R.string.episode_progress_stage, stage),
+                                        text = stringResource(
+                                            R.string.episode_progress_stage, stage
+                                        ),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                     val words = uiState.progress?.wordCount
                                     if (words != null && words > 0) {
                                         Text(
-                                            text = stringResource(R.string.episode_progress_words, words),
+                                            text = stringResource(
+                                                R.string.episode_progress_words, words
+                                            ),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.secondary
                                         )
@@ -241,7 +243,10 @@ private fun EpisodeDetailScreen(
                                 Text(
                                     text = when {
                                         isCurrentActiveEpisode && isPlaying -> stringResource(R.string.player_pause)
-                                        hasSavedProgress -> stringResource(R.string.episode_resume_button, formattedSavedTime)
+                                        hasSavedProgress -> stringResource(
+                                            R.string.episode_resume_button, formattedSavedTime
+                                        )
+
                                         else -> stringResource(R.string.episode_play_stream_button)
                                     },
                                     style = MaterialTheme.typography.titleSmall,
@@ -259,7 +264,11 @@ private fun EpisodeDetailScreen(
                                     shape = ExpressiveShapes.medium,
                                     enabled = canPlay
                                 ) {
-                                    Icon(Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(
+                                        Icons.Default.Replay,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = stringResource(R.string.episode_restart_button),
@@ -277,9 +286,15 @@ private fun EpisodeDetailScreen(
                                     enabled = !uiState.isRegenerating
                                 ) {
                                     if (uiState.isRegenerating) {
-                                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp), strokeWidth = 2.dp
+                                        )
                                     } else {
-                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Icon(
+                                            Icons.Default.Refresh,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(stringResource(R.string.episode_regenerate_button))
                                     }
@@ -302,7 +317,9 @@ private fun EpisodeDetailScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             episode.guests.forEach { guest ->
-                                VoiceChip(voiceName = "${guest.name} (Guest)", persona = guest.persona)
+                                VoiceChip(
+                                    voiceName = "${guest.name} (Guest)", persona = guest.persona
+                                )
                             }
                         }
                     }
@@ -356,25 +373,26 @@ private fun EpisodeDetailScreen(
             val title = uiState.episode?.title ?: ""
             AlertDialog(
                 onDismissRequest = { if (!uiState.isDeleting) onDismissDelete() },
-                title = { Text(stringResource(R.string.episode_delete_confirm_title)) },
-                text = { Text(stringResource(R.string.episode_delete_confirm, title)) },
-                confirmButton = {
-                    TextButton(
-                        onClick = onConfirmDelete,
-                        enabled = !uiState.isDeleting
-                    ) {
-                        Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = onDismissDelete,
-                        enabled = !uiState.isDeleting
-                    ) {
-                        Text(stringResource(R.string.action_cancel))
-                    }
-                },
-                shape = ExpressiveShapes.large
+                        title = { Text(stringResource(R.string.episode_delete_confirm_title)) },
+                        text = { Text(stringResource(R.string.episode_delete_confirm, title)) },
+                        confirmButton = {
+                            TextButton(
+                                onClick = onConfirmDelete, enabled = !uiState.isDeleting
+                            ) {
+                                Text(
+                                    stringResource(R.string.action_delete),
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = onDismissDelete, enabled = !uiState.isDeleting
+                            ) {
+                                Text(stringResource(R.string.action_cancel))
+                            }
+                        },
+                        shape = ExpressiveShapes.large
             )
         }
     }
@@ -410,8 +428,7 @@ fun EpisodeDetailReadyPreview() {
             onPlayAudio = {},
             onRegenerate = {},
             onConfirmDelete = {},
-            onDismissDelete = {}
-        )
+            onDismissDelete = {})
     }
 }
 
@@ -431,7 +448,9 @@ fun EpisodeDetailGeneratingPreview() {
             uiState = EpisodeDetailUiState(
                 episode = sampleEpisode,
                 status = "generating",
-                progress = com.rodrigos01.aipodcasts.data.model.EpisodeProgress(stage = "Writing script", wordCount = 450)
+                progress = com.rodrigos01.aipodcasts.data.model.EpisodeProgress(
+                    stage = "Writing script", wordCount = 450
+                )
             ),
             activeEpisodeId = null,
             activePositionMs = 0L,
@@ -441,7 +460,6 @@ fun EpisodeDetailGeneratingPreview() {
             onPlayAudio = {},
             onRegenerate = {},
             onConfirmDelete = {},
-            onDismissDelete = {}
-        )
+            onDismissDelete = {})
     }
 }

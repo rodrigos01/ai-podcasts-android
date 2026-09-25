@@ -33,7 +33,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -58,8 +57,10 @@ import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.data.model.Source
 import com.rodrigos01.aipodcasts.ui.components.EmptyState
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
+import com.rodrigos01.aipodcasts.ui.components.LocalContentPadding
 import com.rodrigos01.aipodcasts.ui.components.StatusBadge
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
+import com.rodrigos01.aipodcasts.ui.components.plus
 import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 
@@ -103,35 +104,15 @@ private fun PodcastDetailScreen(
     onDismissDeleteEpisodeDialog: () -> Unit,
     onConfirmDeleteEpisode: () -> Unit
 ) {
-    Scaffold(
-        topBar = {
+    val contentPadding = LocalContentPadding.current
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
             ExpressiveTopAppBar(
                 title = uiState.podcast?.title ?: stringResource(R.string.podcast_detail_title),
                 canNavigateBack = true,
                 onNavigateBack = onNavigateBack
             )
-        },
-        floatingActionButton = {
-            if (uiState.selectedTab == 0) {
-                FloatingActionButton(
-                    onClick = onNavigateToEpisodeWizard,
-                    shape = ExpressiveShapes.medium,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(R.string.podcast_detail_new_episode_fab)
-                    )
-                }
-            }
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
             val tabs = listOf(
                 stringResource(R.string.podcast_detail_tab_episodes),
                 stringResource(R.string.podcast_detail_tab_sources),
@@ -174,7 +155,7 @@ private fun PodcastDetailScreen(
                         )
                     } else {
                         LazyColumn(
-                            contentPadding = PaddingValues(16.dp),
+                            contentPadding = contentPadding + PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
@@ -213,7 +194,7 @@ private fun PodcastDetailScreen(
                             )
                         } else {
                             LazyColumn(
-                                contentPadding = PaddingValues(16.dp),
+                                contentPadding = contentPadding + PaddingValues(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.fillMaxSize()
                             ) {
@@ -235,7 +216,7 @@ private fun PodcastDetailScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .verticalScroll(rememberScrollState())
-                                .padding(20.dp)
+                                .padding(contentPadding + PaddingValues(20.dp))
                         ) {
                             Text(
                                 text = podcast.title,
@@ -300,6 +281,26 @@ private fun PodcastDetailScreen(
                 },
                 shape = ExpressiveShapes.large
             )
+        }
+
+        if (uiState.selectedTab == 0) {
+            FloatingActionButton(
+                onClick = onNavigateToEpisodeWizard,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(
+                        end = 16.dp,
+                        bottom = contentPadding.calculateBottomPadding() + 16.dp
+                    ),
+                shape = ExpressiveShapes.medium,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = stringResource(R.string.podcast_detail_new_episode_fab)
+                )
+            }
         }
     }
 }

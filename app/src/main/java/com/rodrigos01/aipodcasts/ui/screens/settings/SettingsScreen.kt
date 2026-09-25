@@ -30,7 +30,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -42,9 +41,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.layout.PaddingValues
 import com.rodrigos01.aipodcasts.R
 import com.rodrigos01.aipodcasts.data.api.ApiClient
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
+import com.rodrigos01.aipodcasts.ui.components.LocalContentPadding
+import com.rodrigos01.aipodcasts.ui.components.plus
 import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 import com.rodrigos01.aipodcasts.ui.theme.ReadyGreen
@@ -82,21 +84,17 @@ private fun SettingsScreen(
     onThemeModeSelected: (String) -> Unit,
     onSignOut: () -> Unit
 ) {
-    Scaffold(
-        topBar = {
-            ExpressiveTopAppBar(
-                title = stringResource(R.string.settings_title),
-                canNavigateBack = true,
-                onNavigateBack = onNavigateBack
-            )
-        }
-    ) { padding ->
+    Column(modifier = Modifier.fillMaxSize()) {
+        ExpressiveTopAppBar(
+            title = stringResource(R.string.settings_title),
+            canNavigateBack = true,
+            onNavigateBack = onNavigateBack
+        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(20.dp),
+                .padding(LocalContentPadding.current + PaddingValues(20.dp)),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             // Backend Server Configuration

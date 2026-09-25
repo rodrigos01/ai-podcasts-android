@@ -30,7 +30,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,7 +51,9 @@ import com.rodrigos01.aipodcasts.data.model.Host
 import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.ui.components.EmptyState
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
+import com.rodrigos01.aipodcasts.ui.components.LocalContentPadding
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
+import com.rodrigos01.aipodcasts.ui.components.plus
 import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 
@@ -93,8 +94,10 @@ private fun HomeScreen(
     onDismissDeleteDialog: () -> Unit,
     onConfirmDeletePodcast: () -> Unit
 ) {
-    Scaffold(
-        topBar = {
+    val contentPadding = LocalContentPadding.current
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
             ExpressiveTopAppBar(
                 title = stringResource(R.string.home_title),
                 actions = {
@@ -106,62 +109,65 @@ private fun HomeScreen(
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNavigateToWizard,
-                shape = ExpressiveShapes.medium,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+
+            PullToRefreshBox(
+                isRefreshing = uiState.isLoading,
+                onRefresh = onRefresh,
+                modifier = Modifier.fillMaxSize()
             ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = stringResource(R.string.home_create_podcast_button)
-                )
-            }
-        }
-    ) { padding ->
-        PullToRefreshBox(
-            isRefreshing = uiState.isLoading,
-            onRefresh = onRefresh,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            when {
-                uiState.isLoading && uiState.podcasts.isEmpty() -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                when {
+                    uiState.isLoading && uiState.podcasts.isEmpty() -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        }
                     }
-                }
-                uiState.podcasts.isEmpty() -> {
-                    EmptyState(
-                        icon = Icons.Default.Podcasts,
-                        title = stringResource(R.string.home_empty_title),
-                        description = stringResource(R.string.home_empty_desc),
-                        actionButtonText = stringResource(R.string.home_create_podcast_button),
-                        onActionClick = onNavigateToWizard
-                    )
-                }
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        items(uiState.podcasts, key = { it.id }) { podcast ->
-                            PodcastCard(
-                                podcast = podcast,
-                                onClick = { onNavigateToDetail(podcast.id) },
-                                onDelete = { onDeletePodcast(podcast) }
-                            )
+                    uiState.podcasts.isEmpty() -> {
+                        EmptyState(
+                            icon = Icons.Default.Podcasts,
+                            title = stringResource(R.string.home_empty_title),
+                            description = stringResource(R.string.home_empty_desc),
+                            actionButtonText = stringResource(R.string.home_create_podcast_button),
+                            onActionClick = onNavigateToWizard
+                        )
+                    }
+                    else -> {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = contentPadding + PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            items(uiState.podcasts, key = { it.id }) { podcast ->
+                                PodcastCard(
+                                    podcast = podcast,
+                                    onClick = { onNavigateToDetail(podcast.id) },
+                                    onDelete = { onDeletePodcast(podcast) }
+                                )
+                            }
                         }
                     }
                 }
             }
+        }
+
+        FloatingActionButton(
+            onClick = onNavigateToWizard,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(
+                    end = 16.dp,
+                    bottom = contentPadding.calculateBottomPadding() + 16.dp
+                ),
+            shape = ExpressiveShapes.medium,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = stringResource(R.string.home_create_podcast_button)
+            )
         }
 
         // Delete Confirmation Dialog

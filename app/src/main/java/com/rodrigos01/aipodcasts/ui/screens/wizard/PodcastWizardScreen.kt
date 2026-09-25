@@ -26,7 +26,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,8 +42,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rodrigos01.aipodcasts.R
 import com.rodrigos01.aipodcasts.data.model.Host
 import com.rodrigos01.aipodcasts.data.model.PodcastOption
+import androidx.compose.foundation.layout.PaddingValues
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
+import com.rodrigos01.aipodcasts.ui.components.LocalContentPadding
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
+import com.rodrigos01.aipodcasts.ui.components.plus
 import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 
@@ -90,21 +92,17 @@ private fun PodcastWizardScreen(
     onApplyRevision: (String?) -> Unit,
     onConfirmAndCreate: () -> Unit
 ) {
-    Scaffold(
-        topBar = {
-            ExpressiveTopAppBar(
-                title = stringResource(R.string.wizard_podcast_title),
-                canNavigateBack = true,
-                onNavigateBack = onNavigateBack
-            )
-        }
-    ) { padding ->
+    Column(modifier = Modifier.fillMaxSize()) {
+        ExpressiveTopAppBar(
+            title = stringResource(R.string.wizard_podcast_title),
+            canNavigateBack = true,
+            onNavigateBack = onNavigateBack
+        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .padding(LocalContentPadding.current + PaddingValues(horizontal = 20.dp, vertical = 12.dp))
         ) {
             if (uiState.step == 1) {
                 // Step 1: Prompt Input
