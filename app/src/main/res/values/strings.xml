@@ -157,6 +157,9 @@
     <string name="episode_regenerate_button">Restart Generation</string>
     <string name="episode_delete_confirm_title">Delete Episode</string>
     <string name="episode_delete_confirm">Delete episode \"%1$s\"?</string>
+    <string name="action_regenerate">Regenerate</string>
+    <string name="episode_regenerate_confirm_title">Regenerate Episode</string>
+    <string name="episode_regenerate_confirm">Regenerate episode \"%1$s\"? This will discard the current audio and transcript and create them again.</string>
 
     <!-- Audio Player -->
     <string name="player_title">Now Playing</string>
