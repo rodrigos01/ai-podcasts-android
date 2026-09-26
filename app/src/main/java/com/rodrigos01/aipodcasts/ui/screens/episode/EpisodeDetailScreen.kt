@@ -29,12 +29,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -89,9 +92,12 @@ fun EpisodeDetailScreen(
         onNavigateBack = onNavigateBack,
         onDeleteClick = { viewModel.promptDelete() },
         onPlayAudio = { forceRestart -> viewModel.playAudio(forceRestart) },
-        onRegenerate = { viewModel.regenerate() },
+        onRegenerateClick = { viewModel.promptRegenerate() },
         onConfirmDelete = { viewModel.confirmDelete() },
-        onDismissDelete = { viewModel.dismissDeleteConfirm() })
+        onDismissDelete = { viewModel.dismissDeleteConfirm() },
+        onConfirmRegenerate = { viewModel.confirmRegenerate() },
+        onDismissRegenerate = { viewModel.dismissRegenerateConfirm() },
+        onErrorShown = { viewModel.clearActionError() })
 }
 
 @UnstableApi
@@ -104,15 +110,28 @@ private fun EpisodeDetailScreen(
     onNavigateBack: () -> Unit,
     onDeleteClick: () -> Unit,
     onPlayAudio: (Boolean) -> Unit,
-    onRegenerate: () -> Unit,
+    onRegenerateClick: () -> Unit,
     onConfirmDelete: () -> Unit,
-    onDismissDelete: () -> Unit
+    onDismissDelete: () -> Unit,
+    onConfirmRegenerate: () -> Unit,
+    onDismissRegenerate: () -> Unit,
+    onErrorShown: () -> Unit
 ) {
     val isCurrentActiveEpisode = activeEpisodeId == uiState.episode?.id
     val currentPosition = if (isCurrentActiveEpisode) activePositionMs else uiState.savedPositionMs
     val hasSavedProgress = currentPosition >= 3000L
     val formattedSavedTime = formatTimeMs(currentPosition)
+    val snackbarHostState = remember { SnackbarHostState() }
 
+    LaunchedEffect(uiState.errorMessage) {
+        val message = uiState.errorMessage
+        if (message != null) {
+            snackbarHostState.showSnackbar(message)
+            onErrorShown()
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize()) {
         ExpressiveTopAppBar(
             title = uiState.episode?.title ?: stringResource(R.string.episode_detail_title),
@@ -120,6 +139,18 @@ private fun EpisodeDetailScreen(
             onNavigateBack = onNavigateBack,
             actions = {
                 if (uiState.episode != null) {
+                    IconButton(onClick = onRegenerateClick, enabled = !uiState.isRegenerating) {
+                        if (uiState.isRegenerating) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp), strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = stringResource(R.string.action_regenerate)
+                            )
+                        }
+                    }
                     IconButton(onClick = onDeleteClick) {
                         Icon(
                             imageVector = Icons.Default.Delete,
@@ -278,29 +309,6 @@ private fun EpisodeDetailScreen(
                                 }
                             }
 
-                            if (uiState.status.equals("failed", ignoreCase = true)) {
-                                Spacer(modifier = Modifier.height(10.dp))
-                                OutlinedButton(
-                                    onClick = onRegenerate,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = ExpressiveShapes.small,
-                                    enabled = !uiState.isRegenerating
-                                ) {
-                                    if (uiState.isRegenerating) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(18.dp), strokeWidth = 2.dp
-                                        )
-                                    } else {
-                                        Icon(
-                                            Icons.Default.Refresh,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(stringResource(R.string.episode_regenerate_button))
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -396,6 +404,36 @@ private fun EpisodeDetailScreen(
                         shape = ExpressiveShapes.large
             )
         }
+
+        if (uiState.showRegenerateConfirm) {
+            val title = uiState.episode?.title ?: ""
+            AlertDialog(
+                onDismissRequest = { if (!uiState.isRegenerating) onDismissRegenerate() },
+                title = { Text(stringResource(R.string.episode_regenerate_confirm_title)) },
+                text = { Text(stringResource(R.string.episode_regenerate_confirm, title)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = onConfirmRegenerate, enabled = !uiState.isRegenerating
+                    ) {
+                        Text(stringResource(R.string.action_regenerate))
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = onDismissRegenerate, enabled = !uiState.isRegenerating
+                    ) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                },
+                shape = ExpressiveShapes.large
+            )
+        }
+    }
+
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier.align(Alignment.BottomCenter)
+    )
     }
 }
 
@@ -427,9 +465,12 @@ fun EpisodeDetailReadyPreview() {
             onNavigateBack = {},
             onDeleteClick = {},
             onPlayAudio = {},
-            onRegenerate = {},
+            onRegenerateClick = {},
             onConfirmDelete = {},
-            onDismissDelete = {})
+            onDismissDelete = {},
+            onConfirmRegenerate = {},
+            onDismissRegenerate = {},
+            onErrorShown = {})
     }
 }
 
@@ -459,8 +500,11 @@ fun EpisodeDetailGeneratingPreview() {
             onNavigateBack = {},
             onDeleteClick = {},
             onPlayAudio = {},
-            onRegenerate = {},
+            onRegenerateClick = {},
             onConfirmDelete = {},
-            onDismissDelete = {})
+            onDismissDelete = {},
+            onConfirmRegenerate = {},
+            onDismissRegenerate = {},
+            onErrorShown = {})
     }
 }

@@ -25,16 +25,12 @@ data class PodcastDetailUiState(
     val sources: List<Source> = emptyList(),
     val selectedTab: Int = 0, // 0: Episodes, 1: Sources, 2: About Show
     val episodeToDelete: Episode? = null,
-    val episodeToRegenerate: Episode? = null,
-    val isRegenerating: Boolean = false,
     val errorMessage: String? = null
 )
 
 private data class PodcastDetailInternalState(
     val selectedTab: Int = 0,
     val episodeToDelete: Episode? = null,
-    val episodeToRegenerate: Episode? = null,
-    val isRegenerating: Boolean = false,
     val errorMessage: String? = null
 )
 
@@ -69,8 +65,6 @@ class PodcastDetailViewModel(
             sources = sources,
             selectedTab = internal.selectedTab,
             episodeToDelete = internal.episodeToDelete,
-            episodeToRegenerate = internal.episodeToRegenerate,
-            isRegenerating = internal.isRegenerating,
             errorMessage = internal.errorMessage
         )
     }.stateIn(
@@ -119,33 +113,6 @@ class PodcastDetailViewModel(
     }
 
     fun confirmDeleteEpisode(podcastId: String) = confirmDeleteEpisode()
-
-    fun promptRegenerateEpisode(episode: Episode) {
-        _internalState.value = _internalState.value.copy(episodeToRegenerate = episode)
-    }
-
-    fun dismissRegenerateEpisodeDialog() {
-        _internalState.value = _internalState.value.copy(episodeToRegenerate = null)
-    }
-
-    fun confirmRegenerateEpisode() {
-        val episode = _internalState.value.episodeToRegenerate ?: return
-        viewModelScope.launch {
-            _internalState.value = _internalState.value.copy(
-                episodeToRegenerate = null,
-                isRegenerating = true
-            )
-            try {
-                episodeRepo.regenerateEpisode(podcastId, episode.id)
-                _internalState.value = _internalState.value.copy(isRegenerating = false)
-            } catch (e: Exception) {
-                _internalState.value = _internalState.value.copy(
-                    isRegenerating = false,
-                    errorMessage = e.localizedMessage ?: e.message
-                )
-            }
-        }
-    }
 
     companion object {
         fun provideFactory(

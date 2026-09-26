@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PlayCircleOutline
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -84,10 +83,7 @@ fun PodcastDetailScreen(
         onDeleteSource = { sourceId -> viewModel.deleteSource(sourceId) },
         onPromptDeleteEpisode = { viewModel.promptDeleteEpisode(it) },
         onDismissDeleteEpisodeDialog = { viewModel.dismissDeleteEpisodeDialog() },
-        onConfirmDeleteEpisode = { viewModel.confirmDeleteEpisode() },
-        onPromptRegenerateEpisode = { viewModel.promptRegenerateEpisode(it) },
-        onDismissRegenerateEpisodeDialog = { viewModel.dismissRegenerateEpisodeDialog() },
-        onConfirmRegenerateEpisode = { viewModel.confirmRegenerateEpisode() }
+        onConfirmDeleteEpisode = { viewModel.confirmDeleteEpisode() }
     )
 }
 
@@ -102,10 +98,7 @@ private fun PodcastDetailScreen(
     onDeleteSource: (String) -> Unit,
     onPromptDeleteEpisode: (Episode) -> Unit,
     onDismissDeleteEpisodeDialog: () -> Unit,
-    onConfirmDeleteEpisode: () -> Unit,
-    onPromptRegenerateEpisode: (Episode) -> Unit,
-    onDismissRegenerateEpisodeDialog: () -> Unit,
-    onConfirmRegenerateEpisode: () -> Unit
+    onConfirmDeleteEpisode: () -> Unit
 ) {
     val contentPadding = LocalContentPadding.current
 
@@ -166,8 +159,7 @@ private fun PodcastDetailScreen(
                                 EpisodeItemCard(
                                     episode = episode,
                                     onClick = { onNavigateToEpisodeDetail(episode.id) },
-                                    onDelete = { onPromptDeleteEpisode(episode) },
-                                    onRegenerate = { onPromptRegenerateEpisode(episode) }
+                                    onDelete = { onPromptDeleteEpisode(episode) }
                                 )
                             }
                         }
@@ -287,25 +279,6 @@ private fun PodcastDetailScreen(
             )
         }
 
-        uiState.episodeToRegenerate?.let { episode ->
-            AlertDialog(
-                onDismissRequest = onDismissRegenerateEpisodeDialog,
-                title = { Text(stringResource(R.string.episode_regenerate_confirm_title)) },
-                text = { Text(stringResource(R.string.episode_regenerate_confirm, episode.title)) },
-                confirmButton = {
-                    TextButton(onClick = onConfirmRegenerateEpisode) {
-                        Text(stringResource(R.string.action_regenerate))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = onDismissRegenerateEpisodeDialog) {
-                        Text(stringResource(R.string.action_cancel))
-                    }
-                },
-                shape = ExpressiveShapes.large
-            )
-        }
-
         if (uiState.selectedTab == 0) {
             FloatingActionButton(
                 onClick = onNavigateToEpisodeWizard,
@@ -332,8 +305,7 @@ private fun PodcastDetailScreen(
 fun EpisodeItemCard(
     episode: Episode,
     onClick: () -> Unit,
-    onDelete: () -> Unit = {},
-    onRegenerate: () -> Unit = {}
+    onDelete: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
@@ -361,13 +333,6 @@ fun EpisodeItemCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 StatusBadge(status = episode.status)
-                IconButton(onClick = onRegenerate) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = stringResource(R.string.action_regenerate),
-                        tint = MaterialTheme.colorScheme.outline
-                    )
-                }
                 IconButton(onClick = onDelete) {
                     Icon(
                         imageVector = Icons.Default.Delete,
@@ -535,10 +500,7 @@ fun PodcastDetailEpisodesPreview() {
             onDeleteSource = {},
             onPromptDeleteEpisode = {},
             onDismissDeleteEpisodeDialog = {},
-            onConfirmDeleteEpisode = {},
-            onPromptRegenerateEpisode = {},
-            onDismissRegenerateEpisodeDialog = {},
-            onConfirmRegenerateEpisode = {}
+            onConfirmDeleteEpisode = {}
         )
     }
 }
@@ -566,10 +528,7 @@ fun PodcastDetailSourcesPreview() {
             onDeleteSource = {},
             onPromptDeleteEpisode = {},
             onDismissDeleteEpisodeDialog = {},
-            onConfirmDeleteEpisode = {},
-            onPromptRegenerateEpisode = {},
-            onDismissRegenerateEpisodeDialog = {},
-            onConfirmRegenerateEpisode = {}
+            onConfirmDeleteEpisode = {}
         )
     }
 }

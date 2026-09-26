@@ -154,7 +154,6 @@
     <string name="episode_streamable_notice">Episode is generating live! You can start listening now while the rest is produced.</string>
     <string name="episode_transcript_title">Conversation Transcript</string>
     <string name="episode_transcript_empty">Transcript will appear here once initial generation finishes.</string>
-    <string name="episode_regenerate_button">Restart Generation</string>
     <string name="episode_delete_confirm_title">Delete Episode</string>
     <string name="episode_delete_confirm">Delete episode \"%1$s\"?</string>
     <string name="action_regenerate">Regenerate</string>

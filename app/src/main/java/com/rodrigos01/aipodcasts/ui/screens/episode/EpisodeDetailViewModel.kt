@@ -32,7 +32,8 @@ data class EpisodeDetailUiState(
     val savedPositionMs: Long = 0L,
     val showDeleteConfirm: Boolean = false,
     val isDeleting: Boolean = false,
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean = false,
+    val showRegenerateConfirm: Boolean = false
 )
 
 private data class EpisodeDetailInternalFlags(
@@ -40,6 +41,7 @@ private data class EpisodeDetailInternalFlags(
     val showDeleteConfirm: Boolean = false,
     val isDeleting: Boolean = false,
     val isDeleted: Boolean = false,
+    val showRegenerateConfirm: Boolean = false,
     val errorMessage: String? = null,
     val savedPositionMs: Long = 0L
 )
@@ -83,7 +85,8 @@ class EpisodeDetailViewModel(
             savedPositionMs = flags.savedPositionMs,
             showDeleteConfirm = flags.showDeleteConfirm,
             isDeleting = flags.isDeleting,
-            isDeleted = flags.isDeleted
+            isDeleted = flags.isDeleted,
+            showRegenerateConfirm = flags.showRegenerateConfirm
         )
     }.stateIn(
         scope = viewModelScope,
@@ -122,19 +125,38 @@ class EpisodeDetailViewModel(
         }
     }
 
-    fun regenerate(pId: String = podcastId, epId: String = episodeId) {
+    fun promptRegenerate() {
+        _flags.value = _flags.value.copy(showRegenerateConfirm = true)
+    }
+
+    fun dismissRegenerateConfirm() {
+        _flags.value = _flags.value.copy(showRegenerateConfirm = false)
+    }
+
+    fun confirmRegenerate(pId: String = podcastId, epId: String = episodeId) {
         viewModelScope.launch {
-            _flags.value = _flags.value.copy(isRegenerating = true, errorMessage = null)
+            _flags.value = _flags.value.copy(
+                showRegenerateConfirm = false,
+                isRegenerating = true,
+                errorMessage = null
+            )
             try {
-                episodeRepo.regenerateEpisode(pId, epId)
-                _flags.value = _flags.value.copy(isRegenerating = false)
+                val success = episodeRepo.regenerateEpisode(pId, epId)
+                _flags.value = _flags.value.copy(
+                    isRegenerating = false,
+                    errorMessage = if (success) null else "Failed to regenerate episode"
+                )
             } catch (e: Exception) {
                 _flags.value = _flags.value.copy(
                     isRegenerating = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.localizedMessage ?: e.message ?: "Failed to regenerate episode"
                 )
             }
         }
+    }
+
+    fun clearActionError() {
+        _flags.value = _flags.value.copy(errorMessage = null)
     }
 
     fun promptDelete() {

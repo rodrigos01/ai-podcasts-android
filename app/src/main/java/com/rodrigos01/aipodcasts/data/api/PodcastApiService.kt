@@ -166,5 +166,5 @@ interface PodcastApiService {
     suspend fun regenerateEpisode(
         @Path("podcastId") podcastId: String,
         @Path("episodeId") episodeId: String
-    ): Episode
+    ): Response<Unit>
 }
