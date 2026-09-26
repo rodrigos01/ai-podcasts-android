@@ -165,6 +165,7 @@ interface PodcastApiService {
     @POST("podcasts/{podcastId}/episodes/{episodeId}/regenerate")
     suspend fun regenerateEpisode(
         @Path("podcastId") podcastId: String,
-        @Path("episodeId") episodeId: String
+        @Path("episodeId") episodeId: String,
+        @Body body: Map<String, String> = emptyMap()
     ): Response<Unit>
 }
