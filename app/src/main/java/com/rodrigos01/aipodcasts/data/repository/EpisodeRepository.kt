@@ -115,7 +115,8 @@ class EpisodeRepository(
         return res.isSuccessful
     }
 
-    suspend fun regenerateEpisode(podcastId: String, episodeId: String): Episode {
-        return api.regenerateEpisode(podcastId, episodeId)
+    suspend fun regenerateEpisode(podcastId: String, episodeId: String): Boolean {
+        val res = api.regenerateEpisode(podcastId, episodeId)
+        return res.isSuccessful
     }
 }
