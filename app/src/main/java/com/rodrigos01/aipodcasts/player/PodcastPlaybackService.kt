@@ -10,7 +10,10 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import com.rodrigos01.aipodcasts.AIPodcastsApplication
+import com.rodrigos01.aipodcasts.data.repository.AuthRepository
 
 @UnstableApi
 class PodcastPlaybackService : MediaSessionService() {
@@ -28,8 +31,14 @@ class PodcastPlaybackService : MediaSessionService() {
             .setReadTimeoutMs(BUFFERING_TIMEOUT_MS)
             .setAllowCrossProtocolRedirects(true)
 
+        val authRepository = runCatching { AIPodcastsApplication.instance.authRepository }.getOrNull() ?: AuthRepository()
+        val resolvingDataSourceFactory = ResolvingDataSource.Factory(
+            httpDataSourceFactory,
+            AudioStreamTokenResolver(authRepository)
+        )
+
         val mediaSourceFactory = DefaultMediaSourceFactory(this)
-            .setDataSourceFactory(httpDataSourceFactory)
+            .setDataSourceFactory(resolvingDataSourceFactory)
 
         // Buffer as far ahead as possible so playback is less likely to catch up to the
         // backend's live generation edge in the first place.

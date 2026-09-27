@@ -1,5 +1,6 @@
 package com.rodrigos01.aipodcasts.data.repository
 
+import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
@@ -7,6 +8,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import java.util.concurrent.TimeUnit
 
 class AuthRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
@@ -61,6 +63,17 @@ class AuthRepository(
     suspend fun getIdToken(forceRefresh: Boolean = false): String? {
         val user = auth.currentUser ?: return null
         return user.getIdToken(forceRefresh).await()?.token
+    }
+
+    fun getIdTokenBlocking(forceRefresh: Boolean = false): String? {
+        val user = auth.currentUser ?: return null
+        return try {
+            val tokenTask = user.getIdToken(forceRefresh)
+            val result = Tasks.await(tokenTask, 10, TimeUnit.SECONDS)
+            result?.token
+        } catch (e: Exception) {
+            null
+        }
     }
 
     fun signOut() {

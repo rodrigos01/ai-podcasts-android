@@ -12,8 +12,10 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import androidx.media3.datasource.HttpDataSource
 import com.rodrigos01.aipodcasts.data.api.ApiClient
 import com.rodrigos01.aipodcasts.data.model.Episode
+import com.rodrigos01.aipodcasts.data.repository.AuthRepository
 import com.rodrigos01.aipodcasts.data.repository.EpisodeRepository
 import com.rodrigos01.aipodcasts.data.repository.PlaybackPositionRepository
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +33,7 @@ class PodcastAudioController(
     private val context: Context,
     private val playbackPositionRepository: PlaybackPositionRepository = PlaybackPositionRepository(context),
     private val episodeRepository: EpisodeRepository = EpisodeRepository(),
+    private val authRepository: AuthRepository = AuthRepository(),
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main)
 ) {
 
@@ -129,8 +132,9 @@ class PodcastAudioController(
             override fun onPlayerError(error: PlaybackException) {
                 // A stalled/closed connection (e.g. the backend took longer than our read
                 // timeout to synthesize the next chunk) shouldn't kill playback for good:
-                // reconnect at the same position instead.
-                scheduleReconnect()
+                // reconnect at the same position instead. If 401 Unauthorized, force refresh token.
+                val is401 = isHttp401(error)
+                scheduleReconnect(forceRefreshToken = is401)
             }
 
             override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
@@ -149,7 +153,7 @@ class PodcastAudioController(
         return player.isCurrentMediaItemSeekable && player.duration > 0
     }
 
-    private fun scheduleReconnect() {
+    private fun scheduleReconnect(forceRefreshToken: Boolean = false) {
         val player = mediaController ?: return
         // Only auto-reconnect if the user actually wanted playback to continue; if they'd
         // already paused, leave it paused.
@@ -159,13 +163,13 @@ class PodcastAudioController(
 
         reconnectJob?.cancel()
         val resumeFromMs = _currentPositionMs.value
-        val backoffMs = (3_000L shl reconnectAttempt).coerceAtMost(30_000L)
+        val backoffMs = if (forceRefreshToken) 500L else (3_000L shl reconnectAttempt).coerceAtMost(30_000L)
         reconnectAttempt++
         reconnectJob = scope.launch {
             delay(backoffMs)
             // A Range/`?t=` request resumes from exactly this position, triggering more
             // synthesis on demand if it hasn't happened yet - no need to pre-poll for it.
-            restartAtPositionMs(resumeFromMs, forcePlay = true)
+            restartAtPositionMs(resumeFromMs, forcePlay = true, forceRefresh = forceRefreshToken)
         }
     }
 
@@ -229,6 +233,14 @@ class PodcastAudioController(
         _currentPodcastTitle.value = podcastTitle
         currentPodcastId = podcastId
         currentIdToken = idToken
+        if (idToken.isNullOrBlank()) {
+            scope.launch {
+                val token = authRepository.getIdToken(forceRefresh = false)
+                if (!token.isNullOrBlank()) {
+                    currentIdToken = token
+                }
+            }
+        }
         _generatedAudioSeconds.value = null
         observeEpisodeAudioProgress(podcastId, episode.id)
 
@@ -242,7 +254,7 @@ class PodcastAudioController(
         val streamUrl = ApiClient.buildAudioStreamUrl(
             podcastId = podcastId,
             episodeId = episode.id,
-            idToken = idToken,
+            idToken = null,
             timeSeconds = if (resumeSeconds > 0) resumeSeconds else null
         )
 
@@ -299,7 +311,11 @@ class PodcastAudioController(
         }
     }
 
-    private fun restartAtPositionMs(positionMs: Long, forcePlay: Boolean? = null) {
+    private fun restartAtPositionMs(
+        positionMs: Long,
+        forcePlay: Boolean? = null,
+        forceRefresh: Boolean = false
+    ) {
         val player = mediaController ?: return
         val episode = _currentEpisode.value ?: return
         val podcastId = currentPodcastId ?: return
@@ -309,20 +325,27 @@ class PodcastAudioController(
         _currentPositionMs.value = positionMs
         playbackPositionRepository.savePositionMs(episode.id, positionMs)
 
-        val streamUrl = ApiClient.buildAudioStreamUrl(
-            podcastId = podcastId,
-            episodeId = episode.id,
-            idToken = currentIdToken,
-            timeSeconds = positionMs / 1000.0
-        )
-        val mediaItem = MediaItem.Builder()
-            .setUri(streamUrl)
-            .setMediaMetadata(player.mediaMetadata)
-            .build()
+        scope.launch {
+            val freshToken = authRepository.getIdToken(forceRefresh = forceRefresh)
+            if (!freshToken.isNullOrBlank()) {
+                currentIdToken = freshToken
+            }
 
-        player.setMediaItem(mediaItem)
-        player.prepare()
-        if (shouldPlay) player.play()
+            val streamUrl = ApiClient.buildAudioStreamUrl(
+                podcastId = podcastId,
+                episodeId = episode.id,
+                idToken = null,
+                timeSeconds = positionMs / 1000.0
+            )
+            val mediaItem = MediaItem.Builder()
+                .setUri(streamUrl)
+                .setMediaMetadata(player.mediaMetadata)
+                .build()
+
+            player.setMediaItem(mediaItem)
+            player.prepare()
+            if (shouldPlay) player.play()
+        }
     }
 
     fun seekRelative(offsetSeconds: Int) {
@@ -353,7 +376,22 @@ class PodcastAudioController(
         controllerFuture?.let { MediaController.releaseFuture(it) }
     }
 
-    private companion object {
+    companion object {
         const val MAX_RECONNECT_ATTEMPTS = 6
+
+        fun isHttp401(error: PlaybackException): Boolean {
+            var cause: Throwable? = error
+            while (cause != null) {
+                if (cause is HttpDataSource.InvalidResponseCodeException && cause.responseCode == 401) {
+                    return true
+                }
+                val msg = cause.message
+                if (msg != null && msg.contains("401")) {
+                    return true
+                }
+                cause = cause.cause
+            }
+            return false
+        }
     }
 }
