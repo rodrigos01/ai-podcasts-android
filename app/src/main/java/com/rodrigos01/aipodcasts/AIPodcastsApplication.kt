@@ -52,7 +52,12 @@ class AIPodcastsApplication : Application() {
         sourceRepository = SourceRepository(firestoreDataSource = firestoreDataSource)
         episodeRepository = EpisodeRepository(firestoreDataSource = firestoreDataSource)
         playbackPositionRepository = PlaybackPositionRepository(this)
-        audioController = PodcastAudioController(this, playbackPositionRepository, episodeRepository)
+        audioController = PodcastAudioController(
+            context = this,
+            playbackPositionRepository = playbackPositionRepository,
+            episodeRepository = episodeRepository,
+            authRepository = authRepository
+        )
     }
 
     companion object {

@@ -10,7 +10,11 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import com.rodrigos01.aipodcasts.AIPodcastsApplication
+import com.rodrigos01.aipodcasts.data.repository.AuthRepository
 
 @UnstableApi
 class PodcastPlaybackService : MediaSessionService() {
@@ -28,8 +32,17 @@ class PodcastPlaybackService : MediaSessionService() {
             .setReadTimeoutMs(BUFFERING_TIMEOUT_MS)
             .setAllowCrossProtocolRedirects(true)
 
+        val authRepository = runCatching { AIPodcastsApplication.instance.authRepository }.getOrNull() ?: AuthRepository()
+        val resolvingDataSourceFactory = ResolvingDataSource.Factory(
+            httpDataSourceFactory,
+            AudioStreamTokenResolver(authRepository)
+        )
+
         val mediaSourceFactory = DefaultMediaSourceFactory(this)
-            .setDataSourceFactory(httpDataSourceFactory)
+            .setDataSourceFactory(resolvingDataSourceFactory)
+            // ExoPlayer retries dropped/stalled loads itself (re-opening through the token
+            // resolver, so a fresh token each time); just give it more attempts than the default.
+            .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(MIN_LOAD_RETRIES))
 
         // Buffer as far ahead as possible so playback is less likely to catch up to the
         // backend's live generation edge in the first place.
@@ -83,5 +96,6 @@ class PodcastPlaybackService : MediaSessionService() {
         const val BUFFERING_TIMEOUT_MS = 120_000
         const val MIN_BUFFER_MS = 60_000
         const val MAX_BUFFER_MS = 600_000
+        const val MIN_LOAD_RETRIES = 6
     }
 }

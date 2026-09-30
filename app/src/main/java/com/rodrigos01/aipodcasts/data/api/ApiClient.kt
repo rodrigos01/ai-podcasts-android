@@ -69,7 +69,7 @@ object ApiClient {
     fun buildAudioStreamUrl(
         podcastId: String,
         episodeId: String,
-        idToken: String?,
+        idToken: String? = null,
         timeSeconds: Double? = null
     ): String {
         val base = currentBaseUrl.trimEnd('/')
