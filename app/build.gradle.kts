@@ -39,7 +39,7 @@ if (localPropertiesFile.exists()) {
 
 android {
     namespace = "com.rodrigos01.aipodcasts"
-    compileSdk = 35
+    compileSdk = 36
 
     signingConfigs {
         create("release") {
@@ -53,7 +53,7 @@ android {
     defaultConfig {
         applicationId = "com.rodrigos01.aipodcasts"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
 
@@ -121,6 +121,7 @@ dependencies {
     androidTestImplementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-text-google-fonts")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
