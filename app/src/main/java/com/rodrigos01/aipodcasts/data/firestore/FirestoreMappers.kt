@@ -85,6 +85,7 @@ object FirestoreMappers {
             ttsPrompt = data["ttsPrompt"] as? String,
             error = data["error"] as? String,
             generatedAudioSeconds = (data["generatedAudioSeconds"] as? Number)?.toDouble(),
+            audioComplete = data["audioComplete"] as? Boolean,
             createdAt = data["createdAt"]
         )
     }

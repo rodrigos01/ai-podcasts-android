@@ -210,6 +210,7 @@ data class Episode(
     @Json(name = "ttsPrompt") val ttsPrompt: String? = null,
     @Json(name = "error") val error: String? = null,
     @Json(name = "generatedAudioSeconds") val generatedAudioSeconds: Double? = null,
+    @Json(name = "audioComplete") val audioComplete: Boolean? = null,
     @Json(name = "createdAt") val createdAt: Any? = null
 )
 
