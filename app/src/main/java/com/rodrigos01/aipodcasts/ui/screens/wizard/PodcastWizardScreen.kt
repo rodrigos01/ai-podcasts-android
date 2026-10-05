@@ -2,6 +2,7 @@ package com.rodrigos01.aipodcasts.ui.screens.wizard
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -23,6 +25,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -31,6 +34,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -44,7 +51,9 @@ import com.rodrigos01.aipodcasts.data.model.Host
 import com.rodrigos01.aipodcasts.data.model.PodcastOption
 import androidx.compose.foundation.layout.PaddingValues
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
+import com.rodrigos01.aipodcasts.ui.components.EditableTextField
 import com.rodrigos01.aipodcasts.ui.components.LocalContentPadding
+import com.rodrigos01.aipodcasts.ui.components.PersonEditDialog
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
 import com.rodrigos01.aipodcasts.ui.components.plus
 import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
@@ -74,7 +83,9 @@ fun PodcastWizardScreen(
         onRevisionInstructionChanged = { viewModel.onRevisionInstructionChanged(it) },
         onReviseTargetChanged = { viewModel.onReviseTargetChanged(it) },
         onApplyRevision = { viewModel.applyRevision(it) },
-        onConfirmAndCreate = { viewModel.confirmAndCreatePodcast() }
+        onConfirmAndCreate = { viewModel.confirmAndCreatePodcast() },
+        onUpdateOption = { viewModel.updateSelectedOption(it) },
+        onUpdateHost = { index, name, persona -> viewModel.updateHost(index, name, persona) }
     )
 }
 
@@ -90,7 +101,9 @@ private fun PodcastWizardScreen(
     onRevisionInstructionChanged: (String) -> Unit,
     onReviseTargetChanged: (Boolean) -> Unit,
     onApplyRevision: (String?) -> Unit,
-    onConfirmAndCreate: () -> Unit
+    onConfirmAndCreate: () -> Unit,
+    onUpdateOption: ((PodcastOption) -> PodcastOption) -> Unit,
+    onUpdateHost: (Int, String, String) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         ExpressiveTopAppBar(
@@ -226,11 +239,17 @@ private fun PodcastWizardScreen(
                 // Display selected concept card
                 if (uiState.options.isNotEmpty() && uiState.selectedOptionIndex in uiState.options.indices) {
                     val activeOption = uiState.options[uiState.selectedOptionIndex]
-                    OptionDetailCard(
-                        option = activeOption,
-                        isRevising = uiState.isRevising,
-                        onApplyPredictedChange = { change -> onApplyRevision(change) }
-                    )
+                    // Keyed so each option tab keeps its own edit-mode state.
+                    key(uiState.selectedOptionIndex) {
+                        OptionDetailCard(
+                            option = activeOption,
+                            isRevising = uiState.isRevising,
+                            isBusy = uiState.isRevising || uiState.isCreating,
+                            onApplyPredictedChange = { change -> onApplyRevision(change) },
+                            onUpdateOption = onUpdateOption,
+                            onUpdateHost = onUpdateHost
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -350,8 +369,13 @@ private fun PodcastWizardScreen(
 fun OptionDetailCard(
     option: PodcastOption,
     isRevising: Boolean = false,
-    onApplyPredictedChange: (String) -> Unit = {}
+    isBusy: Boolean = false,
+    onApplyPredictedChange: (String) -> Unit = {},
+    onUpdateOption: ((PodcastOption) -> PodcastOption) -> Unit = {},
+    onUpdateHost: (Int, String, String) -> Unit = { _, _, _ -> }
 ) {
+    var editingHostIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = ExpressiveShapes.medium,
@@ -361,19 +385,23 @@ fun OptionDetailCard(
         border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
-            Text(
-                text = option.title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+            EditableTextField(
+                label = stringResource(R.string.wizard_option_title_label),
+                value = option.title,
+                onValueChange = { v -> onUpdateOption { it.copy(title = v) } },
+                textStyle = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                textColor = MaterialTheme.colorScheme.primary,
+                enabled = !isBusy
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = option.description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
+            EditableTextField(
+                label = stringResource(R.string.wizard_option_desc_label),
+                value = option.description,
+                onValueChange = { v -> onUpdateOption { it.copy(description = v) } },
+                enabled = !isBusy,
+                minLines = 3
             )
 
             if (option.hosts.isNotEmpty()) {
@@ -386,27 +414,33 @@ fun OptionDetailCard(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    option.hosts.forEach { host ->
-                        VoiceChip(voiceName = "${host.name} (${host.voice})", persona = host.persona)
+                    option.hosts.forEachIndexed { index, host ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                VoiceChip(voiceName = "${host.name} (${host.voice})", persona = host.persona)
+                            }
+                            IconButton(onClick = { editingHostIndex = index }, enabled = !isBusy) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = stringResource(R.string.person_edit_content_desc, host.name),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
 
-            if (option.structure.isNotBlank()) {
-                Spacer(modifier = Modifier.height(14.dp))
-                Text(
-                    text = stringResource(R.string.wizard_option_structure_label),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = option.structure,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Spacer(modifier = Modifier.height(14.dp))
+            EditableTextField(
+                label = stringResource(R.string.wizard_option_structure_label),
+                value = option.structure,
+                onValueChange = { v -> onUpdateOption { it.copy(structure = v) } },
+                textStyle = MaterialTheme.typography.bodySmall,
+                textColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                enabled = !isBusy,
+                minLines = 4
+            )
 
             if (option.predictedChanges.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(14.dp))
@@ -439,6 +473,20 @@ fun OptionDetailCard(
             }
         }
     }
+
+    editingHostIndex?.let { index ->
+        option.hosts.getOrNull(index)?.let { host ->
+            PersonEditDialog(
+                initialName = host.name,
+                initialPersona = host.persona,
+                onDismiss = { editingHostIndex = null },
+                onSave = { name, persona ->
+                    onUpdateHost(index, name, persona)
+                    editingHostIndex = null
+                }
+            )
+        }
+    }
 }
 
 @Preview(showSystemUi = true, name = "Step 1: Input")
@@ -455,7 +503,9 @@ fun PodcastWizardStep1Preview() {
             onRevisionInstructionChanged = {},
             onReviseTargetChanged = {},
             onApplyRevision = {},
-            onConfirmAndCreate = {}
+            onConfirmAndCreate = {},
+            onUpdateOption = {},
+            onUpdateHost = { _, _, _ -> }
         )
     }
 }
@@ -494,7 +544,9 @@ fun PodcastWizardStep2Preview() {
             onRevisionInstructionChanged = {},
             onReviseTargetChanged = {},
             onApplyRevision = {},
-            onConfirmAndCreate = {}
+            onConfirmAndCreate = {},
+            onUpdateOption = {},
+            onUpdateHost = { _, _, _ -> }
         )
     }
 }

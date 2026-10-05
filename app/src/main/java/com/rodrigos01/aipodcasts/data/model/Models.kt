@@ -158,7 +158,7 @@ data class EpisodeCreateInput(
     @Json(name = "sourceIds") val sourceIds: List<String>,
     @Json(name = "participantHostIds") val participantHostIds: List<String>,
     @Json(name = "guests") val guests: List<EpisodeGuest> = emptyList(),
-    @Json(name = "productionNotes") val productionNotes: String
+    @Json(name = "productionNotes") val productionNotes: String? = null
 )
 
 // Confirm always takes a whole suggestion's episodes array (1 entry, or 2 for

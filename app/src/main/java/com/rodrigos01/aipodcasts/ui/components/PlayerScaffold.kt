@@ -1,6 +1,10 @@
 package com.rodrigos01.aipodcasts.ui.components
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +26,7 @@ import com.rodrigos01.aipodcasts.ui.screens.player.PlayerSheet
 
 val LocalContentPadding = compositionLocalOf { PaddingValues() }
 
+@OptIn(ExperimentalLayoutApi::class)
 @UnstableApi
 @Composable
 fun PlayerScaffold(
@@ -32,14 +37,18 @@ fun PlayerScaffold(
     content: @Composable (PaddingValues) -> Unit
 ) {
     var showPlayerSheet by remember { mutableStateOf(false) }
+    val isKeyboardVisible = WindowInsets.isImeVisible
 
+    // With edge-to-edge, windowSoftInputMode=adjustResize no longer shrinks the window, so the
+    // keyboard inset has to be applied explicitly or it covers low text fields.
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.imePadding(),
         contentWindowInsets = ScaffoldDefaults.contentWindowInsets.only(
             WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom
         ),
         bottomBar = {
-            if (showBottomBar) {
+            // The mini player is hidden while typing so it doesn't eat the space above the keyboard.
+            if (showBottomBar && !isKeyboardVisible) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()

@@ -554,6 +554,35 @@ class EpisodeWizardViewModel(
         }
     }
 
+    /** Applies a manual edit to the draft currently shown in the pager. */
+    fun updateSelectedDraft(transform: (EpisodeDraft) -> EpisodeDraft) {
+        val state = _uiState.value
+        val suggestionIndex = state.selectedSuggestionIndex
+        val episodeIndex = state.selectedEpisodeIndex
+        val suggestion = state.suggestions.getOrNull(suggestionIndex) ?: return
+        if (episodeIndex !in suggestion.episodes.indices) return
+        val episodes = suggestion.episodes.toMutableList()
+        episodes[episodeIndex] = transform(episodes[episodeIndex])
+        _uiState.value = state.copy(
+            suggestions = state.suggestions.toMutableList().also {
+                it[suggestionIndex] = suggestion.copy(episodes = episodes)
+            },
+            errorMessage = null
+        )
+    }
+
+    /** Edits a guest of the current draft, keeping an already-selected copy of that guest in sync. */
+    fun updateGuest(guestIndex: Int, name: String, persona: String) {
+        val old = _uiState.value.selectedDraft?.guests?.getOrNull(guestIndex) ?: return
+        val updated = old.copy(name = name, persona = persona)
+        updateSelectedDraft { draft ->
+            draft.copy(guests = draft.guests.toMutableList().also { it[guestIndex] = updated })
+        }
+        updateSelectedSpeakerSelection { selection ->
+            selection.copy(guests = selection.guests.map { if (it.name == old.name) updated else it })
+        }
+    }
+
     fun setEpisodeLength(length: String) {
         _uiState.value = _uiState.value.copy(episodeLength = length)
     }
@@ -607,6 +636,13 @@ class EpisodeWizardViewModel(
             return
         }
 
+        if (episodes.any { it.title.isBlank() || it.topics.isBlank() || it.guests.any { g -> g.name.isBlank() || g.persona.isBlank() } }) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Every episode needs a title and topics, and every guest a name and persona"
+            )
+            return
+        }
+
         val sourceIds = _uiState.value.selectedSourceIds.toList()
         val length = _uiState.value.episodeLength
         val inputs = episodes.mapIndexed { index, draft ->
@@ -617,7 +653,7 @@ class EpisodeWizardViewModel(
                 sourceIds = sourceIds,
                 participantHostIds = selections[index].hostIds.toList(),
                 guests = selections[index].guests,
-                productionNotes = draft.productionNotes
+                productionNotes = draft.productionNotes.trim().ifBlank { null }
             )
         }
 

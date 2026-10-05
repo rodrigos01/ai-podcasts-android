@@ -45,6 +45,28 @@ class PodcastWizardViewModel(
         _uiState.value = _uiState.value.copy(selectedOptionIndex = index)
     }
 
+    /** Applies a manual edit to the selected option; the edited option is what gets revised/created. */
+    fun updateSelectedOption(transform: (PodcastOption) -> PodcastOption) {
+        val state = _uiState.value
+        val index = state.selectedOptionIndex
+        if (index !in state.options.indices) return
+        _uiState.value = state.copy(
+            options = state.options.toMutableList().also { it[index] = transform(it[index]) },
+            errorMessage = null
+        )
+    }
+
+    fun updateHost(hostIndex: Int, name: String, persona: String) {
+        updateSelectedOption { option ->
+            if (hostIndex !in option.hosts.indices) option
+            else option.copy(
+                hosts = option.hosts.toMutableList().also {
+                    it[hostIndex] = it[hostIndex].copy(name = name, persona = persona)
+                }
+            )
+        }
+    }
+
     fun onRevisionInstructionChanged(instruction: String) {
         _uiState.value = _uiState.value.copy(revisionInstruction = instruction)
     }
@@ -123,6 +145,14 @@ class PodcastWizardViewModel(
         if (options.isEmpty() || selectedIdx !in options.indices) return
 
         val chosen = options[selectedIdx]
+        if (chosen.title.isBlank() || chosen.description.isBlank() || chosen.structure.isBlank() ||
+            chosen.hosts.any { it.name.isBlank() || it.persona.isBlank() }
+        ) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Title, description and structure are required, and every host needs a name and persona"
+            )
+            return
+        }
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isCreating = true, errorMessage = null)
