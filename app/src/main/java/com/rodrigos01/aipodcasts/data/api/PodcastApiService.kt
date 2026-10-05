@@ -19,6 +19,8 @@ import com.rodrigos01.aipodcasts.data.model.Source
 import com.rodrigos01.aipodcasts.data.model.UpdateEpisodeRequest
 import com.rodrigos01.aipodcasts.data.model.UpdatePodcastRequest
 import com.rodrigos01.aipodcasts.data.model.Voice
+import com.rodrigos01.aipodcasts.data.model.VoiceDesignRequest
+import com.rodrigos01.aipodcasts.data.model.VoiceDesignResponse
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.Response
@@ -39,6 +41,11 @@ interface PodcastApiService {
 
     @GET("voices")
     suspend fun getVoices(): List<Voice>
+
+    @POST("voices/design")
+    suspend fun designVoices(
+        @Body request: VoiceDesignRequest
+    ): VoiceDesignResponse
 
     // Podcast Wizard & CRUD
     @POST("podcasts/wizard/options")

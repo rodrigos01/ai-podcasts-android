@@ -27,6 +27,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -42,6 +43,7 @@ import com.rodrigos01.aipodcasts.R
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
 import com.rodrigos01.aipodcasts.ui.components.LocalContentPadding
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
+import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignDialog
 
 @Composable
 fun PodcastEditScreen(
@@ -174,6 +176,21 @@ fun PodcastEditScreen(
                                     shape = ExpressiveShapes.small,
                                     enabled = editable
                                 )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(
+                                        onClick = { viewModel.chooseHostVoice(index) },
+                                        enabled = editable
+                                    ) {
+                                        Text(stringResource(R.string.voice_design_choose))
+                                    }
+                                    if (host.resolvedVoiceId in state.pickedVoiceIds) {
+                                        Text(
+                                            text = stringResource(R.string.voice_design_picked),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -226,6 +243,7 @@ fun PodcastEditScreen(
                 }
             }
         }
+        VoiceDesignDialog(viewModel.voiceDesign)
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter)

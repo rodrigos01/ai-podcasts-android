@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.data.model.Episode
+import com.rodrigos01.aipodcasts.data.model.EpisodeGuest
 import com.rodrigos01.aipodcasts.data.model.EpisodeProgress
 import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.data.repository.AuthRepository
@@ -12,6 +13,7 @@ import com.rodrigos01.aipodcasts.data.repository.EpisodeRepository
 import com.rodrigos01.aipodcasts.data.repository.PlaybackPositionRepository
 import com.rodrigos01.aipodcasts.data.repository.PodcastRepository
 import com.rodrigos01.aipodcasts.player.PodcastAudioController
+import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -103,6 +105,23 @@ class EpisodeDetailViewModel(
         initialValue = EpisodeDetailUiState(isLoading = true)
     )
 
+    // When editing, the voice-design session is the episode id.
+    val voiceDesign = VoiceDesignController(viewModelScope, podcastRepo::designVoices)
+
+    override fun onCleared() {
+        voiceDesign.release()
+    }
+
+    /** Opens the voice picker for [guest]; [onPicked] receives the chosen voice id and the prompt it came from. */
+    fun chooseGuestVoice(guest: EpisodeGuest, onPicked: (voiceId: String, prompt: String) -> Unit) {
+        voiceDesign.open(
+            sessionId = episodeId,
+            personName = guest.name,
+            prompt = guest.voicePrompt ?: "Name: ${guest.name}\n\n${guest.persona}",
+            onPicked = onPicked
+        )
+    }
+
     fun refreshSavedPosition() {
         _flags.value = _flags.value.copy(
             savedPositionMs = playbackPositionRepo.getPositionMs(episodeId)
@@ -151,13 +170,14 @@ class EpisodeDetailViewModel(
     }
 
     /** Saves the episode's editable metadata; on success offers to regenerate so the edits take effect. */
-    fun saveEdit(title: String, topics: String, productionNotes: String) {
+    fun saveEdit(title: String, topics: String, productionNotes: String, guests: List<EpisodeGuest>) {
         val current = uiState.value.episode ?: return
         val newTitle = title.trim()
         val newTopics = topics.trim()
         val newNotes = productionNotes.trim()
+        val guestsChanged = guests != current.guests
         val changed = newTitle != current.title || newTopics != current.topics ||
-            newNotes != (current.productionNotes ?: "")
+            newNotes != (current.productionNotes ?: "") || guestsChanged
         if (!changed) {
             dismissEdit()
             return
@@ -170,7 +190,9 @@ class EpisodeDetailViewModel(
                     episodeId,
                     title = newTitle.takeIf { it != current.title },
                     topics = newTopics.takeIf { it != current.topics },
-                    productionNotes = newNotes.takeIf { it != (current.productionNotes ?: "") }
+                    productionNotes = newNotes.takeIf { it != (current.productionNotes ?: "") },
+                    // The API wants the whole guest list back, with ids so existing guests are kept.
+                    guests = guests.takeIf { guestsChanged }
                 )
                 _flags.value = _flags.value.copy(
                     isSavingEdit = false,

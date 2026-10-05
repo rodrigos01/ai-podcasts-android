@@ -57,6 +57,7 @@ import com.rodrigos01.aipodcasts.ui.components.PersonEditDialog
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
 import com.rodrigos01.aipodcasts.ui.components.plus
 import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
+import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignDialog
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 
 @Composable
@@ -85,8 +86,11 @@ fun PodcastWizardScreen(
         onApplyRevision = { viewModel.applyRevision(it) },
         onConfirmAndCreate = { viewModel.confirmAndCreatePodcast() },
         onUpdateOption = { viewModel.updateSelectedOption(it) },
-        onUpdateHost = { index, name, persona -> viewModel.updateHost(index, name, persona) }
+        onUpdateHost = { index, name, persona -> viewModel.updateHost(index, name, persona) },
+        onChooseHostVoice = { viewModel.chooseHostVoice(it) }
     )
+
+    VoiceDesignDialog(viewModel.voiceDesign)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -103,7 +107,8 @@ private fun PodcastWizardScreen(
     onApplyRevision: (String?) -> Unit,
     onConfirmAndCreate: () -> Unit,
     onUpdateOption: ((PodcastOption) -> PodcastOption) -> Unit,
-    onUpdateHost: (Int, String, String) -> Unit
+    onUpdateHost: (Int, String, String) -> Unit,
+    onChooseHostVoice: (Int) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         ExpressiveTopAppBar(
@@ -247,7 +252,8 @@ private fun PodcastWizardScreen(
                             isBusy = uiState.isRevising || uiState.isCreating,
                             onApplyPredictedChange = { change -> onApplyRevision(change) },
                             onUpdateOption = onUpdateOption,
-                            onUpdateHost = onUpdateHost
+                            onUpdateHost = onUpdateHost,
+                            onChooseHostVoice = onChooseHostVoice
                         )
                     }
                 }
@@ -372,7 +378,8 @@ fun OptionDetailCard(
     isBusy: Boolean = false,
     onApplyPredictedChange: (String) -> Unit = {},
     onUpdateOption: ((PodcastOption) -> PodcastOption) -> Unit = {},
-    onUpdateHost: (Int, String, String) -> Unit = { _, _, _ -> }
+    onUpdateHost: (Int, String, String) -> Unit = { _, _, _ -> },
+    onChooseHostVoice: (Int) -> Unit = {}
 ) {
     var editingHostIndex by rememberSaveable { mutableStateOf<Int?>(null) }
 
@@ -483,7 +490,9 @@ fun OptionDetailCard(
                 onSave = { name, persona ->
                     onUpdateHost(index, name, persona)
                     editingHostIndex = null
-                }
+                },
+                onChooseVoice = { onChooseHostVoice(index) },
+                hasPickedVoice = host.resolvedVoiceId != null
             )
         }
     }
@@ -505,7 +514,8 @@ fun PodcastWizardStep1Preview() {
             onApplyRevision = {},
             onConfirmAndCreate = {},
             onUpdateOption = {},
-            onUpdateHost = { _, _, _ -> }
+            onUpdateHost = { _, _, _ -> },
+            onChooseHostVoice = {}
         )
     }
 }
@@ -546,7 +556,8 @@ fun PodcastWizardStep2Preview() {
             onApplyRevision = {},
             onConfirmAndCreate = {},
             onUpdateOption = {},
-            onUpdateHost = { _, _, _ -> }
+            onUpdateHost = { _, _, _ -> },
+            onChooseHostVoice = {}
         )
     }
 }

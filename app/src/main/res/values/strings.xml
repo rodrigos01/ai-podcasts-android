@@ -157,6 +157,19 @@
     <string name="episode_delete_confirm_title">Delete Episode</string>
     <string name="episode_delete_confirm">Delete episode \"%1$s\"?</string>
     <string name="action_regenerate">Regenerate</string>
+    <string name="voice_design_title">Voice for %1$s</string>
+    <string name="voice_design_prompt_label">Voice prompt</string>
+    <string name="voice_design_generate">Design voices</string>
+    <string name="voice_design_regenerate">Regenerate</string>
+    <string name="voice_design_designing">Designing…</string>
+    <string name="voice_design_wait">This takes about 20 seconds.</string>
+    <string name="voice_design_candidate">Voice %1$d</string>
+    <string name="voice_design_play">Play preview</string>
+    <string name="voice_design_pause">Stop preview</string>
+    <string name="voice_design_use">Use this voice</string>
+    <string name="voice_design_preview_failed">Couldn\'t play that preview.</string>
+    <string name="voice_design_choose">Choose voice</string>
+    <string name="voice_design_picked">Custom voice selected</string>
     <string name="person_edit_title">Edit speaker</string>
     <string name="person_edit_content_desc">Edit %1$s</string>
     <string name="podcast_edit_title">Edit Show</string>
@@ -173,6 +186,7 @@
     <string name="podcast_edit_error_required">Title, description and structure are required, and every host needs a name, voice and persona.</string>
     <string name="podcast_edit_error_hosts">A show needs at least one host.</string>
     <string name="episode_edit_title">Edit Episode</string>
+    <string name="episode_edit_guests_header">Guests</string>
     <string name="episode_edit_field_title">Title</string>
     <string name="episode_edit_field_topics">Topics</string>
     <string name="episode_edit_field_notes">Production notes</string>

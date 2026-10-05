@@ -92,7 +92,9 @@ fun PersonEditDialog(
     initialName: String,
     initialPersona: String,
     onDismiss: () -> Unit,
-    onSave: (name: String, persona: String) -> Unit
+    onSave: (name: String, persona: String) -> Unit,
+    onChooseVoice: (() -> Unit)? = null,
+    hasPickedVoice: Boolean = false
 ) {
     var name by rememberSaveable { mutableStateOf(initialName) }
     var persona by rememberSaveable { mutableStateOf(initialPersona) }
@@ -121,6 +123,18 @@ fun PersonEditDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = ExpressiveShapes.small
                 )
+                if (onChooseVoice != null) {
+                    TextButton(onClick = onChooseVoice) {
+                        Text(stringResource(R.string.voice_design_choose))
+                    }
+                    if (hasPickedVoice) {
+                        Text(
+                            text = stringResource(R.string.voice_design_picked),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
         },
         confirmButton = {

@@ -7,6 +7,7 @@ import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.data.model.Host
 import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.data.repository.PodcastRepository
+import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +22,8 @@ data class PodcastEditUiState(
     val description: String = "",
     val structure: String = "",
     val hosts: List<Host> = emptyList(),
+    /** Voice ids picked in this screen, so those hosts can be flagged as having a new voice. */
+    val pickedVoiceIds: Set<String> = emptySet(),
     val validationError: Boolean = false,
     val noHostsError: Boolean = false,
     val errorMessage: String? = null
@@ -35,6 +38,33 @@ class PodcastEditViewModel(
     val uiState: StateFlow<PodcastEditUiState> = _uiState.asStateFlow()
 
     private var original: Podcast? = null
+
+    // The design session when editing is the podcast id.
+    val voiceDesign = VoiceDesignController(viewModelScope, podcastRepo::designVoices)
+
+    override fun onCleared() {
+        voiceDesign.release()
+    }
+
+    fun chooseHostVoice(index: Int) {
+        val host = _uiState.value.hosts.getOrNull(index) ?: return
+        voiceDesign.open(
+            sessionId = podcastId,
+            personName = host.name.ifBlank { "host" },
+            prompt = host.voicePrompt ?: "Name: ${host.name}\n\n${host.persona}"
+        ) { voiceId, prompt ->
+            _uiState.update { state ->
+                // Match by id rather than position: hosts may have been added/removed meanwhile.
+                val i = state.hosts.indexOfFirst { it.id == host.id && it.name == host.name }
+                if (i < 0) state else state.copy(
+                    hosts = state.hosts.toMutableList().also {
+                        it[i] = it[i].copy(resolvedVoiceId = voiceId, voicePrompt = prompt)
+                    },
+                    pickedVoiceIds = state.pickedVoiceIds + voiceId
+                )
+            }
+        }
+    }
 
     init {
         viewModelScope.launch {

@@ -3,6 +3,8 @@ package com.rodrigos01.aipodcasts.data.repository
 import com.rodrigos01.aipodcasts.data.api.ApiClient
 import com.rodrigos01.aipodcasts.data.api.PodcastApiService
 import com.rodrigos01.aipodcasts.data.model.CreatePodcastRequest
+import com.rodrigos01.aipodcasts.data.model.DesignedVoice
+import com.rodrigos01.aipodcasts.data.model.VoiceDesignRequest
 import com.rodrigos01.aipodcasts.data.model.Host
 import com.rodrigos01.aipodcasts.data.model.HostUpdate
 import com.rodrigos01.aipodcasts.data.model.Podcast
@@ -17,6 +19,9 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.rodrigos01.aipodcasts.data.firestore.PodcastFirestoreDataSource
 
 import kotlinx.coroutines.flow.Flow
+
+/** Wizard options plus the voice-design session id that goes with them. */
+data class PodcastOptionsResult(val sessionId: String?, val options: List<PodcastOption>)
 
 class PodcastRepository(
     private val api: PodcastApiService = ApiClient.apiService,
@@ -64,35 +69,46 @@ class PodcastRepository(
     suspend fun generatePodcastOptions(
         prompt: String,
         sourceMaterial: String? = null
-    ): List<PodcastOption> {
+    ): PodcastOptionsResult {
         val request = PodcastWizardOptionsRequest(prompt = prompt, sourceMaterial = sourceMaterial)
-        return api.generatePodcastOptions(request).options
+        val response = api.generatePodcastOptions(request)
+        return PodcastOptionsResult(response.sessionId, response.options)
     }
 
     suspend fun revisePodcastOptions(
         options: List<PodcastOption>,
         targetIndex: Int? = null,
-        instruction: String
-    ): List<PodcastOption> {
+        instruction: String,
+        sessionId: String? = null
+    ): PodcastOptionsResult {
         val request = PodcastWizardReviseRequest(
             options = options,
+            sessionId = sessionId,
             targetIndex = targetIndex,
             instruction = instruction
         )
-        return api.revisePodcastOptions(request).options
+        val response = api.revisePodcastOptions(request)
+        return PodcastOptionsResult(response.sessionId ?: sessionId, response.options)
+    }
+
+    /** Designs up to 3 candidate voices from [prompt] within the given design session. */
+    suspend fun designVoices(sessionId: String, prompt: String): List<DesignedVoice> {
+        return api.designVoices(VoiceDesignRequest(sessionId = sessionId, prompt = prompt)).voices
     }
 
     suspend fun createPodcast(
         title: String,
         description: String,
         structure: String,
-        hosts: List<Host>
+        hosts: List<Host>,
+        sessionId: String? = null
     ): Podcast {
         val request = CreatePodcastRequest(
             title = title,
             description = description,
             structure = structure,
-            hosts = hosts
+            hosts = hosts,
+            sessionId = sessionId
         )
         return api.createPodcast(request)
     }
@@ -108,7 +124,9 @@ class PodcastRepository(
             title = title,
             description = description,
             structure = structure,
-            hosts = hosts?.map { HostUpdate(it.id.ifBlank { null }, it.name, it.voice, it.persona) }
+            hosts = hosts?.map {
+                HostUpdate(it.id.ifBlank { null }, it.name, it.voice, it.persona, it.voicePrompt, it.resolvedVoiceId)
+            }
         )
         return api.updatePodcast(id, request)
     }

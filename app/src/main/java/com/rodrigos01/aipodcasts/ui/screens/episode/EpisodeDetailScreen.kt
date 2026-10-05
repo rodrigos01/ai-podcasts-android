@@ -58,11 +58,13 @@ import com.rodrigos01.aipodcasts.data.model.Episode
 import com.rodrigos01.aipodcasts.data.model.EpisodeGuest
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
 import com.rodrigos01.aipodcasts.ui.components.LocalContentPadding
+import com.rodrigos01.aipodcasts.ui.components.PersonEditDialog
 import com.rodrigos01.aipodcasts.ui.components.StatusBadge
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
 import com.rodrigos01.aipodcasts.ui.components.plus
 import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
+import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignDialog
 
 @UnstableApi
 @Composable
@@ -98,7 +100,8 @@ fun EpisodeDetailScreen(
         onNavigateBack = onNavigateBack,
         onDeleteClick = { viewModel.promptDelete() },
         onEditClick = { viewModel.promptEdit() },
-        onSaveEdit = { t, tp, n -> viewModel.saveEdit(t, tp, n) },
+        onSaveEdit = { t, tp, n, g -> viewModel.saveEdit(t, tp, n, g) },
+        onChooseGuestVoice = { guest, onPicked -> viewModel.chooseGuestVoice(guest, onPicked) },
         onDismissEdit = { viewModel.dismissEdit() },
         onPlayAudio = { forceRestart -> viewModel.playAudio(forceRestart) },
         onRegenerateClick = { viewModel.promptRegenerate() },
@@ -107,6 +110,8 @@ fun EpisodeDetailScreen(
         onConfirmRegenerate = { viewModel.confirmRegenerate() },
         onDismissRegenerate = { viewModel.dismissRegenerateConfirm() },
         onErrorShown = { viewModel.clearActionError() })
+
+    VoiceDesignDialog(viewModel.voiceDesign)
 }
 
 @UnstableApi
@@ -119,7 +124,8 @@ private fun EpisodeDetailScreen(
     onNavigateBack: () -> Unit,
     onDeleteClick: () -> Unit,
     onEditClick: () -> Unit,
-    onSaveEdit: (String, String, String) -> Unit,
+    onSaveEdit: (String, String, String, List<EpisodeGuest>) -> Unit,
+    onChooseGuestVoice: (EpisodeGuest, (String, String) -> Unit) -> Unit,
     onDismissEdit: () -> Unit,
     onPlayAudio: (Boolean) -> Unit,
     onRegenerateClick: () -> Unit,
@@ -418,6 +424,9 @@ private fun EpisodeDetailScreen(
             var title by remember { mutableStateOf(editingEpisode.title) }
             var topics by remember { mutableStateOf(editingEpisode.topics) }
             var notes by remember { mutableStateOf(editingEpisode.productionNotes ?: "") }
+            var guests by remember { mutableStateOf(editingEpisode.guests) }
+            var editingGuestIndex by remember { mutableStateOf<Int?>(null) }
+            val pickedVoiceIds = remember { mutableStateOf(setOf<String>()) }
             AlertDialog(
                 onDismissRequest = { if (!uiState.isSavingEdit) onDismissEdit() },
                 title = { Text(stringResource(R.string.episode_edit_title)) },
@@ -449,7 +458,39 @@ private fun EpisodeDetailScreen(
                             modifier = Modifier.fillMaxWidth(),
                             shape = ExpressiveShapes.small
                         )
-                        val hasUnsavedChanges = title.trim() != editingEpisode.title ||
+                        if (guests.isNotEmpty()) {
+                            Text(
+                                text = stringResource(R.string.episode_edit_guests_header),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                            guests.forEachIndexed { index, guest ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(guest.name, style = MaterialTheme.typography.bodyMedium)
+                                        if (guest.resolvedVoiceId in pickedVoiceIds.value) {
+                                            Text(
+                                                text = stringResource(R.string.voice_design_picked),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = { editingGuestIndex = index },
+                                        enabled = !uiState.isSavingEdit
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = stringResource(R.string.person_edit_content_desc, guest.name),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        val hasUnsavedChanges = guests != editingEpisode.guests || title.trim() != editingEpisode.title ||
                             topics.trim() != editingEpisode.topics ||
                             notes.trim() != (editingEpisode.productionNotes ?: "")
                         // Disabled with unsaved edits so regenerating can't silently discard them.
@@ -469,9 +510,10 @@ private fun EpisodeDetailScreen(
                 },
                 confirmButton = {
                     TextButton(
-                        onClick = { onSaveEdit(title, topics, notes) },
+                        onClick = { onSaveEdit(title, topics, notes, guests) },
                         // The server rejects empty strings for these fields.
                         enabled = !uiState.isSavingEdit && title.isNotBlank() &&
+                            guests.all { it.name.isNotBlank() && it.persona.isNotBlank() } &&
                             topics.isNotBlank() && (notes.isNotBlank() || editingEpisode.productionNotes.isNullOrEmpty())
                     ) {
                         Text(stringResource(R.string.action_save))
@@ -484,6 +526,29 @@ private fun EpisodeDetailScreen(
                 },
                 shape = ExpressiveShapes.large
             )
+
+            editingGuestIndex?.let { index ->
+                guests.getOrNull(index)?.let { guest ->
+                    PersonEditDialog(
+                        initialName = guest.name,
+                        initialPersona = guest.persona,
+                        onDismiss = { editingGuestIndex = null },
+                        onSave = { name, persona ->
+                            guests = guests.toMutableList().also { it[index] = it[index].copy(name = name, persona = persona) }
+                            editingGuestIndex = null
+                        },
+                        onChooseVoice = {
+                            onChooseGuestVoice(guest) { voiceId, prompt ->
+                                guests = guests.toMutableList().also {
+                                    it[index] = it[index].copy(resolvedVoiceId = voiceId, voicePrompt = prompt)
+                                }
+                                pickedVoiceIds.value = pickedVoiceIds.value + voiceId
+                            }
+                        },
+                        hasPickedVoice = guest.resolvedVoiceId in pickedVoiceIds.value
+                    )
+                }
+            }
         }
 
         if (uiState.showRegenerateConfirm) {
@@ -551,7 +616,8 @@ fun EpisodeDetailReadyPreview() {
             onNavigateBack = {},
             onDeleteClick = {},
             onEditClick = {},
-            onSaveEdit = { _, _, _ -> },
+            onSaveEdit = { _, _, _, _ -> },
+            onChooseGuestVoice = { _, _ -> },
             onDismissEdit = {},
             onPlayAudio = {},
             onRegenerateClick = {},
@@ -589,7 +655,8 @@ fun EpisodeDetailGeneratingPreview() {
             onNavigateBack = {},
             onDeleteClick = {},
             onEditClick = {},
-            onSaveEdit = { _, _, _ -> },
+            onSaveEdit = { _, _, _, _ -> },
+            onChooseGuestVoice = { _, _ -> },
             onDismissEdit = {},
             onPlayAudio = {},
             onRegenerateClick = {},

@@ -6,6 +6,7 @@ import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.data.model.PodcastOption
 import com.rodrigos01.aipodcasts.data.repository.PodcastRepository
+import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +23,8 @@ data class PodcastWizardUiState(
     val selectedOptionIndex: Int = 0,
     val revisionInstruction: String = "",
     val reviseTargetSelectedOnly: Boolean = true,
+    // Voice-design session handed out by the wizard; echoed on revise and create.
+    val sessionId: String? = null,
     val createdPodcast: Podcast? = null,
     val errorMessage: String? = null
 )
@@ -32,6 +35,32 @@ class PodcastWizardViewModel(
 
     private val _uiState = MutableStateFlow(PodcastWizardUiState())
     val uiState: StateFlow<PodcastWizardUiState> = _uiState.asStateFlow()
+
+    val voiceDesign = VoiceDesignController(viewModelScope, podcastRepo::designVoices)
+
+    override fun onCleared() {
+        voiceDesign.release()
+    }
+
+    /** Opens the voice picker for a host of the selected option. */
+    fun chooseHostVoice(hostIndex: Int) {
+        val state = _uiState.value
+        val sessionId = state.sessionId ?: return
+        val host = state.options.getOrNull(state.selectedOptionIndex)?.hosts?.getOrNull(hostIndex) ?: return
+        voiceDesign.open(
+            sessionId = sessionId,
+            personName = host.name,
+            prompt = host.voicePrompt ?: "Name: ${host.name}\n\n${host.persona}"
+        ) { voiceId, prompt ->
+            updateSelectedOption { option ->
+                option.copy(
+                    hosts = option.hosts.toMutableList().also {
+                        if (hostIndex in it.indices) it[hostIndex] = it[hostIndex].copy(resolvedVoiceId = voiceId, voicePrompt = prompt)
+                    }
+                )
+            }
+        }
+    }
 
     fun onPromptChanged(prompt: String) {
         _uiState.value = _uiState.value.copy(prompt = prompt, errorMessage = null)
@@ -86,10 +115,11 @@ class PodcastWizardViewModel(
             _uiState.value = _uiState.value.copy(isGenerating = true, errorMessage = null)
             try {
                 val material = _uiState.value.sourceMaterial.trim().ifBlank { null }
-                val options = podcastRepo.generatePodcastOptions(prompt = prompt, sourceMaterial = material)
+                val result = podcastRepo.generatePodcastOptions(prompt = prompt, sourceMaterial = material)
                 _uiState.value = _uiState.value.copy(
                     isGenerating = false,
-                    options = options,
+                    options = result.options,
+                    sessionId = result.sessionId,
                     selectedOptionIndex = 0,
                     step = 2
                 )
@@ -123,11 +153,13 @@ class PodcastWizardViewModel(
                 val revised = podcastRepo.revisePodcastOptions(
                     options = currentOptions,
                     targetIndex = targetIndex,
-                    instruction = instruction
+                    instruction = instruction,
+                    sessionId = _uiState.value.sessionId
                 )
                 _uiState.value = _uiState.value.copy(
                     isRevising = false,
-                    options = revised,
+                    options = revised.options,
+                    sessionId = revised.sessionId ?: _uiState.value.sessionId,
                     revisionInstruction = if (instructionOverride != null) _uiState.value.revisionInstruction else ""
                 )
             } catch (e: Exception) {
@@ -161,7 +193,8 @@ class PodcastWizardViewModel(
                     title = chosen.title,
                     description = chosen.description,
                     structure = chosen.structure,
-                    hosts = chosen.hosts
+                    hosts = chosen.hosts,
+                    sessionId = _uiState.value.sessionId
                 )
                 _uiState.value = _uiState.value.copy(
                     isCreating = false,
