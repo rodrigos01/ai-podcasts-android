@@ -196,8 +196,6 @@ private fun EpisodeDetailScreen(
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.weight(1f)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                StatusBadge(status = uiState.status)
                             }
 
                             if (episode.topics.isNotBlank()) {
@@ -258,6 +256,10 @@ private fun EpisodeDetailScreen(
                             }
 
                             Spacer(modifier = Modifier.height(16.dp))
+                            if (uiState.status != "ready") {
+                                StatusBadge(status = uiState.status)
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
 
                             Button(
                                 onClick = { onPlayAudio(false) },
