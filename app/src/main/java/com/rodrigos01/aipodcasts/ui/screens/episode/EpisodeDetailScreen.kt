@@ -157,18 +157,6 @@ private fun EpisodeDetailScreen(
                             contentDescription = stringResource(R.string.action_edit)
                         )
                     }
-                    IconButton(onClick = onRegenerateClick, enabled = !uiState.isRegenerating) {
-                        if (uiState.isRegenerating) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp), strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = stringResource(R.string.action_regenerate)
-                            )
-                        }
-                    }
                     IconButton(onClick = onDeleteClick) {
                         Icon(
                             imageVector = Icons.Default.Delete,
@@ -461,6 +449,22 @@ private fun EpisodeDetailScreen(
                             modifier = Modifier.fillMaxWidth(),
                             shape = ExpressiveShapes.small
                         )
+                        val hasUnsavedChanges = title.trim() != editingEpisode.title ||
+                            topics.trim() != editingEpisode.topics ||
+                            notes.trim() != (editingEpisode.productionNotes ?: "")
+                        // Disabled with unsaved edits so regenerating can't silently discard them.
+                        TextButton(
+                            onClick = onRegenerateClick,
+                            enabled = !hasUnsavedChanges && !uiState.isSavingEdit && !uiState.isRegenerating
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.action_regenerate))
+                        }
                     }
                 },
                 confirmButton = {

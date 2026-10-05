@@ -135,7 +135,7 @@ class EpisodeDetailViewModel(
     }
 
     fun promptRegenerate() {
-        _flags.value = _flags.value.copy(showRegenerateConfirm = true)
+        _flags.value = _flags.value.copy(showRegenerateConfirm = true, showEditDialog = false)
     }
 
     fun dismissRegenerateConfirm() {
