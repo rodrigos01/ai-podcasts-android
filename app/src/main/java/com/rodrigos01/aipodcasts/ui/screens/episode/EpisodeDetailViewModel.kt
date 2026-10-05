@@ -33,7 +33,10 @@ data class EpisodeDetailUiState(
     val showDeleteConfirm: Boolean = false,
     val isDeleting: Boolean = false,
     val isDeleted: Boolean = false,
-    val showRegenerateConfirm: Boolean = false
+    val showRegenerateConfirm: Boolean = false,
+    val regenerateAfterEdit: Boolean = false,
+    val showEditDialog: Boolean = false,
+    val isSavingEdit: Boolean = false
 )
 
 private data class EpisodeDetailInternalFlags(
@@ -42,6 +45,9 @@ private data class EpisodeDetailInternalFlags(
     val isDeleting: Boolean = false,
     val isDeleted: Boolean = false,
     val showRegenerateConfirm: Boolean = false,
+    val regenerateAfterEdit: Boolean = false,
+    val showEditDialog: Boolean = false,
+    val isSavingEdit: Boolean = false,
     val errorMessage: String? = null,
     val savedPositionMs: Long = 0L
 )
@@ -86,7 +92,10 @@ class EpisodeDetailViewModel(
             showDeleteConfirm = flags.showDeleteConfirm,
             isDeleting = flags.isDeleting,
             isDeleted = flags.isDeleted,
-            showRegenerateConfirm = flags.showRegenerateConfirm
+            showRegenerateConfirm = flags.showRegenerateConfirm,
+            regenerateAfterEdit = flags.regenerateAfterEdit,
+            showEditDialog = flags.showEditDialog,
+            isSavingEdit = flags.isSavingEdit
         )
     }.stateIn(
         scope = viewModelScope,
@@ -130,13 +139,59 @@ class EpisodeDetailViewModel(
     }
 
     fun dismissRegenerateConfirm() {
-        _flags.value = _flags.value.copy(showRegenerateConfirm = false)
+        _flags.value = _flags.value.copy(showRegenerateConfirm = false, regenerateAfterEdit = false)
+    }
+
+    fun promptEdit() {
+        _flags.value = _flags.value.copy(showEditDialog = true)
+    }
+
+    fun dismissEdit() {
+        _flags.value = _flags.value.copy(showEditDialog = false)
+    }
+
+    /** Saves the episode's editable metadata; on success offers to regenerate so the edits take effect. */
+    fun saveEdit(title: String, topics: String, productionNotes: String) {
+        val current = uiState.value.episode ?: return
+        val newTitle = title.trim()
+        val newTopics = topics.trim()
+        val newNotes = productionNotes.trim()
+        val changed = newTitle != current.title || newTopics != current.topics ||
+            newNotes != (current.productionNotes ?: "")
+        if (!changed) {
+            dismissEdit()
+            return
+        }
+        viewModelScope.launch {
+            _flags.value = _flags.value.copy(isSavingEdit = true, errorMessage = null)
+            try {
+                episodeRepo.updateEpisode(
+                    podcastId,
+                    episodeId,
+                    title = newTitle.takeIf { it != current.title },
+                    topics = newTopics.takeIf { it != current.topics },
+                    productionNotes = newNotes.takeIf { it != (current.productionNotes ?: "") }
+                )
+                _flags.value = _flags.value.copy(
+                    isSavingEdit = false,
+                    showEditDialog = false,
+                    showRegenerateConfirm = true,
+                    regenerateAfterEdit = true
+                )
+            } catch (e: Exception) {
+                _flags.value = _flags.value.copy(
+                    isSavingEdit = false,
+                    errorMessage = e.localizedMessage ?: e.message ?: "Failed to save episode"
+                )
+            }
+        }
     }
 
     fun confirmRegenerate(pId: String = podcastId, epId: String = episodeId) {
         viewModelScope.launch {
             _flags.value = _flags.value.copy(
                 showRegenerateConfirm = false,
+                regenerateAfterEdit = false,
                 isRegenerating = true,
                 errorMessage = null
             )

@@ -4,6 +4,7 @@ import com.rodrigos01.aipodcasts.data.api.ApiClient
 import com.rodrigos01.aipodcasts.data.api.PodcastApiService
 import com.rodrigos01.aipodcasts.data.model.CreatePodcastRequest
 import com.rodrigos01.aipodcasts.data.model.Host
+import com.rodrigos01.aipodcasts.data.model.HostUpdate
 import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.data.model.PodcastOption
 import com.rodrigos01.aipodcasts.data.model.PodcastWizardOptionsRequest
@@ -107,7 +108,7 @@ class PodcastRepository(
             title = title,
             description = description,
             structure = structure,
-            hosts = hosts
+            hosts = hosts?.map { HostUpdate(it.id.ifBlank { null }, it.name, it.voice, it.persona) }
         )
         return api.updatePodcast(id, request)
     }

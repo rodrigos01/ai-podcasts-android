@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material3.AlertDialog
@@ -70,6 +71,7 @@ fun PodcastDetailScreen(
     onNavigateBack: () -> Unit,
     onNavigateToEpisodeWizard: (String) -> Unit,
     onNavigateToEpisodeDetail: (String, String) -> Unit,
+    onNavigateToEdit: (String) -> Unit,
     viewModel: PodcastDetailViewModel = viewModel(factory = PodcastDetailViewModel.provideFactory(podcastId))
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -79,6 +81,7 @@ fun PodcastDetailScreen(
         onNavigateBack = onNavigateBack,
         onNavigateToEpisodeWizard = { onNavigateToEpisodeWizard(podcastId) },
         onNavigateToEpisodeDetail = { episodeId -> onNavigateToEpisodeDetail(podcastId, episodeId) },
+        onNavigateToEdit = { onNavigateToEdit(podcastId) },
         onTabSelected = { viewModel.selectTab(it) },
         onDeleteSource = { sourceId -> viewModel.deleteSource(sourceId) },
         onPromptDeleteEpisode = { viewModel.promptDeleteEpisode(it) },
@@ -94,6 +97,7 @@ private fun PodcastDetailScreen(
     onNavigateBack: () -> Unit,
     onNavigateToEpisodeWizard: () -> Unit,
     onNavigateToEpisodeDetail: (String) -> Unit,
+    onNavigateToEdit: () -> Unit,
     onTabSelected: (Int) -> Unit,
     onDeleteSource: (String) -> Unit,
     onPromptDeleteEpisode: (Episode) -> Unit,
@@ -107,7 +111,17 @@ private fun PodcastDetailScreen(
             ExpressiveTopAppBar(
                 title = uiState.podcast?.title ?: stringResource(R.string.podcast_detail_title),
                 canNavigateBack = true,
-                onNavigateBack = onNavigateBack
+                onNavigateBack = onNavigateBack,
+                actions = {
+                    if (uiState.podcast != null) {
+                        IconButton(onClick = onNavigateToEdit) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = stringResource(R.string.action_edit)
+                            )
+                        }
+                    }
+                }
             )
             val tabs = listOf(
                 stringResource(R.string.podcast_detail_tab_episodes),
@@ -488,6 +502,7 @@ fun PodcastDetailEpisodesPreview() {
             onNavigateBack = {},
             onNavigateToEpisodeWizard = {},
             onNavigateToEpisodeDetail = {},
+            onNavigateToEdit = {},
             onTabSelected = {},
             onDeleteSource = {},
             onPromptDeleteEpisode = {},
@@ -516,6 +531,7 @@ fun PodcastDetailSourcesPreview() {
             onNavigateBack = {},
             onNavigateToEpisodeWizard = {},
             onNavigateToEpisodeDetail = {},
+            onNavigateToEdit = {},
             onTabSelected = {},
             onDeleteSource = {},
             onPromptDeleteEpisode = {},

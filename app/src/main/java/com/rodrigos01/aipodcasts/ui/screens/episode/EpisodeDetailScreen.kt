@@ -12,9 +12,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -28,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -37,7 +41,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -91,6 +97,9 @@ fun EpisodeDetailScreen(
         isPlaying = isPlaying,
         onNavigateBack = onNavigateBack,
         onDeleteClick = { viewModel.promptDelete() },
+        onEditClick = { viewModel.promptEdit() },
+        onSaveEdit = { t, tp, n -> viewModel.saveEdit(t, tp, n) },
+        onDismissEdit = { viewModel.dismissEdit() },
         onPlayAudio = { forceRestart -> viewModel.playAudio(forceRestart) },
         onRegenerateClick = { viewModel.promptRegenerate() },
         onConfirmDelete = { viewModel.confirmDelete() },
@@ -109,6 +118,9 @@ private fun EpisodeDetailScreen(
     isPlaying: Boolean,
     onNavigateBack: () -> Unit,
     onDeleteClick: () -> Unit,
+    onEditClick: () -> Unit,
+    onSaveEdit: (String, String, String) -> Unit,
+    onDismissEdit: () -> Unit,
     onPlayAudio: (Boolean) -> Unit,
     onRegenerateClick: () -> Unit,
     onConfirmDelete: () -> Unit,
@@ -139,6 +151,12 @@ private fun EpisodeDetailScreen(
             onNavigateBack = onNavigateBack,
             actions = {
                 if (uiState.episode != null) {
+                    IconButton(onClick = onEditClick) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = stringResource(R.string.action_edit)
+                        )
+                    }
                     IconButton(onClick = onRegenerateClick, enabled = !uiState.isRegenerating) {
                         if (uiState.isRegenerating) {
                             CircularProgressIndicator(
@@ -407,12 +425,74 @@ private fun EpisodeDetailScreen(
             )
         }
 
+        val editingEpisode = uiState.episode
+        if (uiState.showEditDialog && editingEpisode != null) {
+            var title by remember { mutableStateOf(editingEpisode.title) }
+            var topics by remember { mutableStateOf(editingEpisode.topics) }
+            var notes by remember { mutableStateOf(editingEpisode.productionNotes ?: "") }
+            AlertDialog(
+                onDismissRequest = { if (!uiState.isSavingEdit) onDismissEdit() },
+                title = { Text(stringResource(R.string.episode_edit_title)) },
+                text = {
+                    Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = title,
+                            onValueChange = { title = it },
+                            label = { Text(stringResource(R.string.episode_edit_field_title)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ExpressiveShapes.small
+                        )
+                        OutlinedTextField(
+                            value = topics,
+                            onValueChange = { topics = it },
+                            label = { Text(stringResource(R.string.episode_edit_field_topics)) },
+                            minLines = 3,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ExpressiveShapes.small
+                        )
+                        OutlinedTextField(
+                            value = notes,
+                            onValueChange = { notes = it },
+                            label = { Text(stringResource(R.string.episode_edit_field_notes)) },
+                            minLines = 3,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ExpressiveShapes.small
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = { onSaveEdit(title, topics, notes) },
+                        // The server rejects empty strings for these fields.
+                        enabled = !uiState.isSavingEdit && title.isNotBlank() &&
+                            topics.isNotBlank() && (notes.isNotBlank() || editingEpisode.productionNotes.isNullOrEmpty())
+                    ) {
+                        Text(stringResource(R.string.action_save))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismissEdit, enabled = !uiState.isSavingEdit) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                },
+                shape = ExpressiveShapes.large
+            )
+        }
+
         if (uiState.showRegenerateConfirm) {
             val title = uiState.episode?.title ?: ""
             AlertDialog(
                 onDismissRequest = { if (!uiState.isRegenerating) onDismissRegenerate() },
                 title = { Text(stringResource(R.string.episode_regenerate_confirm_title)) },
-                text = { Text(stringResource(R.string.episode_regenerate_confirm, title)) },
+                text = {
+                    Text(
+                        if (uiState.regenerateAfterEdit) stringResource(R.string.episode_edit_saved_regenerate)
+                        else stringResource(R.string.episode_regenerate_confirm, title)
+                    )
+                },
                 confirmButton = {
                     TextButton(
                         onClick = onConfirmRegenerate, enabled = !uiState.isRegenerating
@@ -466,6 +546,9 @@ fun EpisodeDetailReadyPreview() {
             isPlaying = false,
             onNavigateBack = {},
             onDeleteClick = {},
+            onEditClick = {},
+            onSaveEdit = { _, _, _ -> },
+            onDismissEdit = {},
             onPlayAudio = {},
             onRegenerateClick = {},
             onConfirmDelete = {},
@@ -501,6 +584,9 @@ fun EpisodeDetailGeneratingPreview() {
             isPlaying = false,
             onNavigateBack = {},
             onDeleteClick = {},
+            onEditClick = {},
+            onSaveEdit = { _, _, _ -> },
+            onDismissEdit = {},
             onPlayAudio = {},
             onRegenerateClick = {},
             onConfirmDelete = {},

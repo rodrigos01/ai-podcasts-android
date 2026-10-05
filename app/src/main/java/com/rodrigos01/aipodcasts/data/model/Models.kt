@@ -41,7 +41,16 @@ data class UpdatePodcastRequest(
     @Json(name = "title") val title: String? = null,
     @Json(name = "description") val description: String? = null,
     @Json(name = "structure") val structure: String? = null,
-    @Json(name = "hosts") val hosts: List<Host>? = null
+    @Json(name = "hosts") val hosts: List<HostUpdate>? = null
+)
+
+/** Host in a PATCH body: a null [id] (omitted from JSON) tells the server it is a new host. */
+@JsonClass(generateAdapter = true)
+data class HostUpdate(
+    @Json(name = "id") val id: String? = null,
+    @Json(name = "name") val name: String,
+    @Json(name = "voice") val voice: String,
+    @Json(name = "persona") val persona: String
 )
 
 @JsonClass(generateAdapter = true)

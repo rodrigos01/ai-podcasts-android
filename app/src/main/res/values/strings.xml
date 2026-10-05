@@ -157,6 +157,24 @@
     <string name="episode_delete_confirm_title">Delete Episode</string>
     <string name="episode_delete_confirm">Delete episode \"%1$s\"?</string>
     <string name="action_regenerate">Regenerate</string>
+    <string name="podcast_edit_title">Edit Show</string>
+    <string name="podcast_edit_field_title">Title</string>
+    <string name="podcast_edit_field_description">Description</string>
+    <string name="podcast_edit_field_structure">Structure &amp; Format</string>
+    <string name="podcast_edit_hosts_header">Hosts</string>
+    <string name="podcast_edit_host_name">Name</string>
+    <string name="podcast_edit_host_voice">Voice description</string>
+    <string name="podcast_edit_host_persona">Persona</string>
+    <string name="podcast_edit_add_host">Add host</string>
+    <string name="podcast_edit_remove_host">Remove host</string>
+    <string name="podcast_edit_future_note">Changes apply to future episodes only. Editing a host\'s voice or persona re-designs their voice the next time audio is generated.</string>
+    <string name="podcast_edit_error_required">Title, description and structure are required, and every host needs a name, voice and persona.</string>
+    <string name="podcast_edit_error_hosts">A show needs at least one host.</string>
+    <string name="episode_edit_title">Edit Episode</string>
+    <string name="episode_edit_field_title">Title</string>
+    <string name="episode_edit_field_topics">Topics</string>
+    <string name="episode_edit_field_notes">Production notes</string>
+    <string name="episode_edit_saved_regenerate">Saved. The existing audio and transcript still reflect the old details. Regenerate the episode to apply your changes?</string>
     <string name="episode_regenerate_confirm_title">Regenerate Episode</string>
     <string name="episode_regenerate_confirm">Regenerate episode \"%1$s\"? This will discard the current audio and transcript and create them again.</string>
 

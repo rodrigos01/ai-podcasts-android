@@ -17,6 +17,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rodrigos01.aipodcasts.ui.screens.auth.AuthScreen
 import com.rodrigos01.aipodcasts.ui.screens.detail.PodcastDetailScreen
 import com.rodrigos01.aipodcasts.ui.screens.detail.PodcastDetailViewModel
+import com.rodrigos01.aipodcasts.ui.screens.edit.PodcastEditScreen
 import com.rodrigos01.aipodcasts.ui.screens.episode.EpisodeDetailScreen
 import com.rodrigos01.aipodcasts.ui.screens.episode.EpisodeDetailViewModel
 import com.rodrigos01.aipodcasts.ui.screens.episode.EpisodeWizardScreen
@@ -93,9 +94,23 @@ fun PodcastNavGraph(
                     onNavigateToEpisodeDetail = { pId, eId ->
                         navController.navigate(Screen.EpisodeDetail.createRoute(pId, eId))
                     },
+                    onNavigateToEdit = { id ->
+                        navController.navigate(Screen.PodcastEdit.createRoute(id))
+                    },
                     viewModel = viewModel(
                         factory = PodcastDetailViewModel.provideFactory(podcastId)
                     )
+                )
+            }
+
+            composable(
+                route = Screen.PodcastEdit.route,
+                arguments = listOf(navArgument("podcastId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val podcastId = backStackEntry.arguments?.getString("podcastId") ?: ""
+                PodcastEditScreen(
+                    podcastId = podcastId,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
 
