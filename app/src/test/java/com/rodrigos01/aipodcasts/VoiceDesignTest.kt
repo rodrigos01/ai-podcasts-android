@@ -99,4 +99,37 @@ class VoiceDesignTest {
         controller.design()
         assertFalse(called)
     }
+
+    @Test
+    fun currentVoiceIsOfferedPreselectedAndKeepingItIsANoOp() {
+        val scope = TestScope(UnconfinedTestDispatcher())
+        val controller = VoiceDesignController(
+            scope,
+            { _, _ -> voices("n1", "n2", "n3") },
+            previewUrlFor = { "https://api/voices/$it/preview" }
+        )
+        var picked: Pair<String, String>? = null
+        controller.open("episode-1", "Sam", "prompt", currentVoiceId = "voice_cur") { id, p -> picked = id to p }
+
+        var state = controller.uiState.value!!
+        assertEquals("voice_cur", state.currentVoice?.voiceId)
+        assertEquals("https://api/voices/voice_cur/preview", state.currentVoice?.previewUrl)
+        assertEquals("voice_cur", state.selectedVoiceId)
+
+        controller.design()
+        state = controller.uiState.value!!
+        assertEquals("regenerating keeps the current voice selected", "voice_cur", state.selectedVoiceId)
+
+        controller.select("n2")
+        controller.select("voice_cur")
+        controller.confirm()
+        assertNull("keeping the current voice must not report a pick", picked)
+        assertNull(controller.uiState.value)
+
+        controller.open("episode-1", "Sam", "prompt", currentVoiceId = "voice_cur") { id, p -> picked = id to p }
+        controller.design()
+        controller.select("n3")
+        controller.confirm()
+        assertEquals("n3" to "prompt", picked)
+    }
 }

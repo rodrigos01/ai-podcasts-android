@@ -51,7 +51,8 @@ class PodcastEditViewModel(
         voiceDesign.open(
             sessionId = podcastId,
             personName = host.name.ifBlank { "host" },
-            prompt = host.voicePrompt ?: "Name: ${host.name}\n\n${host.persona}"
+            prompt = host.voicePrompt ?: "Name: ${host.name}\n\n${host.persona}",
+            currentVoiceId = host.resolvedVoiceId
         ) { voiceId, prompt ->
             _uiState.update { state ->
                 // Match by id rather than position: hosts may have been added/removed meanwhile.

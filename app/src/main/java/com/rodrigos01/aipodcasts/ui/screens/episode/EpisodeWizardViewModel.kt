@@ -597,7 +597,8 @@ class EpisodeWizardViewModel(
         voiceDesign.open(
             sessionId = sessionId,
             personName = guest.name,
-            prompt = guest.voicePrompt ?: "Name: ${guest.name}\n\n${guest.persona}"
+            prompt = guest.voicePrompt ?: "Name: ${guest.name}\n\n${guest.persona}",
+            currentVoiceId = guest.resolvedVoiceId
         ) { voiceId, prompt ->
             editGuest(guestIndex) { it.copy(resolvedVoiceId = voiceId, voicePrompt = prompt) }
         }

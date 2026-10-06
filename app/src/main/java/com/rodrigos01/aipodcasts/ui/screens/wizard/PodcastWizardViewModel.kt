@@ -50,7 +50,8 @@ class PodcastWizardViewModel(
         voiceDesign.open(
             sessionId = sessionId,
             personName = host.name,
-            prompt = host.voicePrompt ?: "Name: ${host.name}\n\n${host.persona}"
+            prompt = host.voicePrompt ?: "Name: ${host.name}\n\n${host.persona}",
+            currentVoiceId = host.resolvedVoiceId
         ) { voiceId, prompt ->
             updateSelectedOption { option ->
                 option.copy(

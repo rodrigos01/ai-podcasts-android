@@ -62,6 +62,10 @@ object ApiClient {
 
     val apiService: PodcastApiService = retrofit.create(PodcastApiService::class.java)
 
+    /** Public sample URL of a designed voice (no auth needed), also valid for a person's stored voice. */
+    fun buildVoicePreviewUrl(voiceId: String): String =
+        "${currentBaseUrl.trimEnd('/')}/voices/$voiceId/preview"
+
     /**
      * Builds the direct streaming URL for Media3 / ExoPlayer playback
      * Includes Firebase ID token and optional resume timestamp in seconds (?t=)

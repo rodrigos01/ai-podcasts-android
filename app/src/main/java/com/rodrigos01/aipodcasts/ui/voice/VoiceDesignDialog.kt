@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.rodrigos01.aipodcasts.R
+import com.rodrigos01.aipodcasts.data.model.DesignedVoice
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 
 /** Shows the voice picker for [controller] while it has an open session; renders nothing otherwise. */
@@ -87,41 +88,25 @@ fun VoiceDesignDialog(controller: VoiceDesignController) {
                     )
                 }
 
+                current.currentVoice?.let { voice ->
+                    VoiceRow(
+                        label = stringResource(R.string.voice_design_current),
+                        voice = voice,
+                        isSelected = current.selectedVoiceId == voice.voiceId,
+                        enabled = !current.isDesigning,
+                        preview = preview,
+                        controller = controller
+                    )
+                }
                 current.candidates.forEachIndexed { index, voice ->
-                    val isActive = preview.voiceId == voice.voiceId
-                    val isLoading = isActive && preview.phase == VoicePreviewPlayer.Phase.Loading
-                    val isPlaying = isActive && preview.phase == VoicePreviewPlayer.Phase.Playing
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = !current.isDesigning) { controller.select(voice.voiceId) },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = current.selectedVoiceId == voice.voiceId,
-                            onClick = { controller.select(voice.voiceId) },
-                            enabled = !current.isDesigning
-                        )
-                        Text(
-                            text = stringResource(R.string.voice_design_candidate, index + 1),
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(onClick = { controller.togglePreview(voice) }) {
-                            when {
-                                isLoading -> CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp
-                                )
-                                else -> Icon(
-                                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                    contentDescription = stringResource(
-                                        if (isPlaying) R.string.voice_design_pause else R.string.voice_design_play
-                                    )
-                                )
-                            }
-                        }
-                    }
+                    VoiceRow(
+                        label = stringResource(R.string.voice_design_candidate, index + 1),
+                        voice = voice,
+                        isSelected = current.selectedVoiceId == voice.voiceId,
+                        enabled = !current.isDesigning,
+                        preview = preview,
+                        controller = controller
+                    )
                 }
 
                 val error = current.errorMessage
@@ -157,5 +142,48 @@ private fun DesignButtonContent(isDesigning: Boolean, label: String) {
         Text(stringResource(R.string.voice_design_designing))
     } else {
         Text(label)
+    }
+}
+
+@Composable
+private fun VoiceRow(
+    label: String,
+    voice: DesignedVoice,
+    isSelected: Boolean,
+    enabled: Boolean,
+    preview: VoicePreviewPlayer.State,
+    controller: VoiceDesignController
+) {
+    val isActive = preview.voiceId == voice.voiceId
+    val isLoading = isActive && preview.phase == VoicePreviewPlayer.Phase.Loading
+    val isPlaying = isActive && preview.phase == VoicePreviewPlayer.Phase.Playing
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled) { controller.select(voice.voiceId) },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = isSelected,
+            onClick = { controller.select(voice.voiceId) },
+            enabled = enabled
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(onClick = { controller.togglePreview(voice) }) {
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = stringResource(
+                        if (isPlaying) R.string.voice_design_pause else R.string.voice_design_play
+                    )
+                )
+            }
+        }
     }
 }

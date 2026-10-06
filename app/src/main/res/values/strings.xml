@@ -163,6 +163,7 @@
     <string name="voice_design_regenerate">Regenerate</string>
     <string name="voice_design_designing">Designing…</string>
     <string name="voice_design_wait">This takes about 20 seconds.</string>
+    <string name="voice_design_current">Current voice</string>
     <string name="voice_design_candidate">Voice %1$d</string>
     <string name="voice_design_play">Play preview</string>
     <string name="voice_design_pause">Stop preview</string>
