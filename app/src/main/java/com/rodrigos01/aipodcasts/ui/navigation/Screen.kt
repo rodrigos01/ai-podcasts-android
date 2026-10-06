@@ -7,11 +7,17 @@ sealed class Screen(val route: String) {
     object PodcastDetail : Screen("podcast_detail/{podcastId}") {
         fun createRoute(podcastId: String) = "podcast_detail/$podcastId"
     }
+    object PodcastEdit : Screen("podcast_edit/{podcastId}") {
+        fun createRoute(podcastId: String) = "podcast_edit/$podcastId"
+    }
     object EpisodeWizard : Screen("episode_wizard/{podcastId}") {
         fun createRoute(podcastId: String) = "episode_wizard/$podcastId"
     }
     object EpisodeDetail : Screen("episode_detail/{podcastId}/{episodeId}") {
         fun createRoute(podcastId: String, episodeId: String) = "episode_detail/$podcastId/$episodeId"
+    }
+    object EpisodeEdit : Screen("episode_edit/{podcastId}/{episodeId}") {
+        fun createRoute(podcastId: String, episodeId: String) = "episode_edit/$podcastId/$episodeId"
     }
     object Settings : Screen("settings")
 }

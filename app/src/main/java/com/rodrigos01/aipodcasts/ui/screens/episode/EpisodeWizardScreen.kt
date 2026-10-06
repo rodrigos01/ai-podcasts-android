@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.PlayArrow
@@ -43,6 +44,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -56,6 +58,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,11 +81,14 @@ import com.rodrigos01.aipodcasts.data.model.Host
 import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.data.model.Source
 import androidx.compose.foundation.layout.PaddingValues
+import com.rodrigos01.aipodcasts.ui.components.EditableTextField
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
 import com.rodrigos01.aipodcasts.ui.components.LocalContentPadding
+import com.rodrigos01.aipodcasts.ui.components.PersonEditDialog
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
 import com.rodrigos01.aipodcasts.ui.components.plus
 import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
+import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignController
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 import com.rodrigos01.aipodcasts.util.FileUtils
 
@@ -178,7 +186,11 @@ fun EpisodeWizardScreen(
         onApplyRevision = { page -> viewModel.applyRevision(podcastId, episodeIndexOverride = page) },
         onToggleHostSelection = { viewModel.toggleHostSelection(it) },
         onToggleGuestSelection = { viewModel.toggleGuestSelection(it) },
-        onConfirmAndStartGeneration = { viewModel.confirmAndStartGeneration(podcastId) }
+        onConfirmAndStartGeneration = { viewModel.confirmAndStartGeneration(podcastId) },
+        onUpdateDraft = { viewModel.updateSelectedDraft(it) },
+        onUpdateGuest = { index, name, persona -> viewModel.updateGuest(index, name, persona) },
+        onChooseGuestVoice = { viewModel.chooseGuestVoice(it) },
+        voiceDesign = viewModel.voiceDesign
     )
 }
 
@@ -205,8 +217,14 @@ private fun EpisodeWizardScreen(
     onApplyRevision: (Int?) -> Unit,
     onToggleHostSelection: (String) -> Unit,
     onToggleGuestSelection: (EpisodeGuest) -> Unit,
-    onConfirmAndStartGeneration: () -> Unit
+    onConfirmAndStartGeneration: () -> Unit,
+    onUpdateDraft: ((EpisodeDraft) -> EpisodeDraft) -> Unit,
+    onUpdateGuest: (Int, String, String) -> Unit,
+    onChooseGuestVoice: (Int) -> Unit,
+    voiceDesign: VoiceDesignController?
 ) {
+    var editingGuestIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+
     Column(modifier = Modifier.fillMaxSize()) {
         ExpressiveTopAppBar(
             title = stringResource(R.string.episode_wizard_title),
@@ -463,9 +481,11 @@ private fun EpisodeWizardScreen(
                         DraftReviewCard(
                             draft = draft,
                             isRevising = uiState.isRevising,
+                            isBusy = uiState.isRevising || uiState.isConfirming,
                             onApplyPredictedChange = { change ->
                                 onApplyRevision(page)
-                            }
+                            },
+                            onUpdateDraft = onUpdateDraft
                         )
                     }
                 }
@@ -560,18 +580,30 @@ private fun EpisodeWizardScreen(
                         }
 
                         // Guest Speakers from Draft
-                        uiState.selectedDraft?.guests?.forEach { guest ->
+                        uiState.selectedDraft?.guests?.forEachIndexed { index, guest ->
                             val isSelected = currentSpeakerSelection.guests.any { it.name == guest.name }
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { onToggleGuestSelection(guest) },
-                                label = { Text("Guest: ${guest.name} (${guest.voice}) - ${guest.persona}") },
-                                leadingIcon = if (isSelected) { { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) } } else null,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp),
-                                shape = ExpressiveShapes.small
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { onToggleGuestSelection(guest) },
+                                    label = { Text("Guest: ${guest.name} (${guest.voice}) - ${guest.persona}") },
+                                    leadingIcon = if (isSelected) { { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) } } else null,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(vertical = 2.dp),
+                                    shape = ExpressiveShapes.small
+                                )
+                                IconButton(
+                                    onClick = { editingGuestIndex = index },
+                                    enabled = !uiState.isRevising && !uiState.isConfirming
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = stringResource(R.string.person_edit_content_desc, guest.name),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
                         }
 
                         if (totalSelectedSpeakers != 2) {
@@ -844,6 +876,23 @@ private fun EpisodeWizardScreen(
             )
         }
     }
+
+    editingGuestIndex?.let { index ->
+        uiState.selectedDraft?.guests?.getOrNull(index)?.let { guest ->
+            PersonEditDialog(
+                initialName = guest.name,
+                initialPersona = guest.persona,
+                onDismiss = { editingGuestIndex = null },
+                onSave = { name, persona ->
+                    onUpdateGuest(index, name, persona)
+                    editingGuestIndex = null
+                },
+                onChooseVoice = { onChooseGuestVoice(index) },
+                hasPickedVoice = guest.resolvedVoiceId != null,
+                voiceDesign = voiceDesign
+            )
+        }
+    }
 }
 
 @Composable
@@ -957,7 +1006,9 @@ private fun AddSourceDriveFileCard(
 fun DraftReviewCard(
     draft: EpisodeDraft,
     isRevising: Boolean = false,
-    onApplyPredictedChange: (String) -> Unit = {}
+    isBusy: Boolean = false,
+    onApplyPredictedChange: (String) -> Unit = {},
+    onUpdateDraft: ((EpisodeDraft) -> EpisodeDraft) -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -967,33 +1018,32 @@ fun DraftReviewCard(
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = draft.title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+            EditableTextField(
+                label = stringResource(R.string.episode_wizard_title_label),
+                value = draft.title,
+                onValueChange = { v -> onUpdateDraft { it.copy(title = v) } },
+                textStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                textColor = MaterialTheme.colorScheme.primary,
+                enabled = !isBusy
             )
             Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = draft.topics,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
+            EditableTextField(
+                label = stringResource(R.string.episode_wizard_topics_label),
+                value = draft.topics,
+                onValueChange = { v -> onUpdateDraft { it.copy(topics = v) } },
+                enabled = !isBusy,
+                minLines = 3
             )
-
-            if (draft.productionNotes.isNotBlank()) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "Production Notes:",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                Text(
-                    text = draft.productionNotes,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Spacer(modifier = Modifier.height(10.dp))
+            EditableTextField(
+                label = stringResource(R.string.episode_wizard_notes_label),
+                value = draft.productionNotes.orEmpty(),
+                onValueChange = { v -> onUpdateDraft { it.copy(productionNotes = v) } },
+                textStyle = MaterialTheme.typography.bodySmall,
+                textColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                enabled = !isBusy,
+                minLines = 3
+            )
 
             if (draft.predictedChanges.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(14.dp))
@@ -1062,7 +1112,11 @@ fun EpisodeWizardStep1Preview() {
             onApplyRevision = {},
             onToggleHostSelection = {},
             onToggleGuestSelection = {},
-            onConfirmAndStartGeneration = {}
+            onConfirmAndStartGeneration = {},
+            onUpdateDraft = {},
+            onUpdateGuest = { _, _, _ -> },
+            onChooseGuestVoice = {},
+            voiceDesign = null
         )
     }
 }
@@ -1116,7 +1170,11 @@ fun EpisodeWizardStep2Preview() {
             onApplyRevision = {},
             onToggleHostSelection = {},
             onToggleGuestSelection = {},
-            onConfirmAndStartGeneration = {}
+            onConfirmAndStartGeneration = {},
+            onUpdateDraft = {},
+            onUpdateGuest = { _, _, _ -> },
+            onChooseGuestVoice = {},
+            voiceDesign = null
         )
     }
 }

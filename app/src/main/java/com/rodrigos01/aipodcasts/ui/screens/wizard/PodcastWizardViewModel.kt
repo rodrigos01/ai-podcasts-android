@@ -1,11 +1,13 @@
 package com.rodrigos01.aipodcasts.ui.screens.wizard
 
+import com.rodrigos01.aipodcasts.data.api.userMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.data.model.PodcastOption
 import com.rodrigos01.aipodcasts.data.repository.PodcastRepository
+import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +24,8 @@ data class PodcastWizardUiState(
     val selectedOptionIndex: Int = 0,
     val revisionInstruction: String = "",
     val reviseTargetSelectedOnly: Boolean = true,
+    // Voice-design session handed out by the wizard; echoed on revise and create.
+    val sessionId: String? = null,
     val createdPodcast: Podcast? = null,
     val errorMessage: String? = null
 )
@@ -33,6 +37,34 @@ class PodcastWizardViewModel(
     private val _uiState = MutableStateFlow(PodcastWizardUiState())
     val uiState: StateFlow<PodcastWizardUiState> = _uiState.asStateFlow()
 
+    val voiceDesign = VoiceDesignController(viewModelScope, podcastRepo::designVoices)
+
+    override fun onCleared() {
+        voiceDesign.release()
+    }
+
+    /** Opens the voice picker for a host of the selected option. */
+    fun chooseHostVoice(hostIndex: Int) {
+        val state = _uiState.value
+        val sessionId = state.sessionId ?: return
+        val host = state.options.getOrNull(state.selectedOptionIndex)?.hosts?.getOrNull(hostIndex) ?: return
+        voiceDesign.open(
+            sessionId = sessionId,
+            personName = host.name,
+            prompt = host.voicePrompt ?: "Name: ${host.name}\n\n${host.persona}",
+            languageCode = state.options.getOrNull(state.selectedOptionIndex)?.languageCode,
+            currentVoiceId = host.resolvedVoiceId
+        ) { voiceId, prompt ->
+            updateSelectedOption { option ->
+                option.copy(
+                    hosts = option.hosts.toMutableList().also {
+                        if (hostIndex in it.indices) it[hostIndex] = it[hostIndex].copy(resolvedVoiceId = voiceId, voicePrompt = prompt)
+                    }
+                )
+            }
+        }
+    }
+
     fun onPromptChanged(prompt: String) {
         _uiState.value = _uiState.value.copy(prompt = prompt, errorMessage = null)
     }
@@ -43,6 +75,28 @@ class PodcastWizardViewModel(
 
     fun onSelectOption(index: Int) {
         _uiState.value = _uiState.value.copy(selectedOptionIndex = index)
+    }
+
+    /** Applies a manual edit to the selected option; the edited option is what gets revised/created. */
+    fun updateSelectedOption(transform: (PodcastOption) -> PodcastOption) {
+        val state = _uiState.value
+        val index = state.selectedOptionIndex
+        if (index !in state.options.indices) return
+        _uiState.value = state.copy(
+            options = state.options.toMutableList().also { it[index] = transform(it[index]) },
+            errorMessage = null
+        )
+    }
+
+    fun updateHost(hostIndex: Int, name: String, persona: String) {
+        updateSelectedOption { option ->
+            if (hostIndex !in option.hosts.indices) option
+            else option.copy(
+                hosts = option.hosts.toMutableList().also {
+                    it[hostIndex] = it[hostIndex].copy(name = name, persona = persona)
+                }
+            )
+        }
     }
 
     fun onRevisionInstructionChanged(instruction: String) {
@@ -64,17 +118,18 @@ class PodcastWizardViewModel(
             _uiState.value = _uiState.value.copy(isGenerating = true, errorMessage = null)
             try {
                 val material = _uiState.value.sourceMaterial.trim().ifBlank { null }
-                val options = podcastRepo.generatePodcastOptions(prompt = prompt, sourceMaterial = material)
+                val result = podcastRepo.generatePodcastOptions(prompt = prompt, sourceMaterial = material)
                 _uiState.value = _uiState.value.copy(
                     isGenerating = false,
-                    options = options,
+                    options = result.options,
+                    sessionId = result.sessionId,
                     selectedOptionIndex = 0,
                     step = 2
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isGenerating = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             }
         }
@@ -86,6 +141,14 @@ class PodcastWizardViewModel(
 
         val currentOptions = _uiState.value.options
         if (currentOptions.isEmpty()) return
+        if (currentOptions.any { it.title.isBlank() || it.description.isBlank() || it.structure.isBlank() ||
+                it.hosts.any { h -> h.name.isBlank() || h.persona.isBlank() } }
+        ) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Fill in the title, description and structure, and every host's name and persona, before revising"
+            )
+            return
+        }
 
         // A predicted change belongs to the option it was shown on, so it always targets
         // the currently-selected option regardless of the selected/all toggle.
@@ -101,17 +164,19 @@ class PodcastWizardViewModel(
                 val revised = podcastRepo.revisePodcastOptions(
                     options = currentOptions,
                     targetIndex = targetIndex,
-                    instruction = instruction
+                    instruction = instruction,
+                    sessionId = _uiState.value.sessionId
                 )
                 _uiState.value = _uiState.value.copy(
                     isRevising = false,
-                    options = revised,
+                    options = revised.options,
+                    sessionId = revised.sessionId ?: _uiState.value.sessionId,
                     revisionInstruction = if (instructionOverride != null) _uiState.value.revisionInstruction else ""
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isRevising = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             }
         }
@@ -123,6 +188,14 @@ class PodcastWizardViewModel(
         if (options.isEmpty() || selectedIdx !in options.indices) return
 
         val chosen = options[selectedIdx]
+        if (chosen.title.isBlank() || chosen.description.isBlank() || chosen.structure.isBlank() ||
+            chosen.hosts.any { it.name.isBlank() || it.persona.isBlank() }
+        ) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Title, description and structure are required, and every host needs a name and persona"
+            )
+            return
+        }
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isCreating = true, errorMessage = null)
@@ -131,7 +204,9 @@ class PodcastWizardViewModel(
                     title = chosen.title,
                     description = chosen.description,
                     structure = chosen.structure,
-                    hosts = chosen.hosts
+                    hosts = chosen.hosts,
+                    sessionId = _uiState.value.sessionId,
+                    languageCode = chosen.languageCode
                 )
                 _uiState.value = _uiState.value.copy(
                     isCreating = false,
@@ -140,7 +215,7 @@ class PodcastWizardViewModel(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isCreating = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             }
         }

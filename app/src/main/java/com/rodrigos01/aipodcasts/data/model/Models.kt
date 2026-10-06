@@ -15,7 +15,10 @@ data class Host(
     @Json(name = "id") val id: String = "",
     @Json(name = "name") val name: String,
     @Json(name = "voice") val voice: String,
-    @Json(name = "persona") val persona: String
+    @Json(name = "persona") val persona: String,
+    // Voice design: the text a voice is designed from, and the voice picked for this host.
+    @Json(name = "voicePrompt") val voicePrompt: String? = null,
+    @Json(name = "resolvedVoiceId") val resolvedVoiceId: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -24,6 +27,8 @@ data class Podcast(
     @Json(name = "title") val title: String,
     @Json(name = "description") val description: String,
     @Json(name = "structure") val structure: String,
+    // BCP-47 tag (e.g. "pt-BR") the show is spoken in; voices are designed for it. Absent on older podcasts.
+    @Json(name = "languageCode") val languageCode: String? = null,
     @Json(name = "hosts") val hosts: List<Host> = emptyList(),
     @Json(name = "createdAt") val createdAt: Any? = null
 )
@@ -33,7 +38,10 @@ data class CreatePodcastRequest(
     @Json(name = "title") val title: String,
     @Json(name = "description") val description: String,
     @Json(name = "structure") val structure: String,
-    @Json(name = "hosts") val hosts: List<Host>
+    @Json(name = "languageCode") val languageCode: String? = null,
+    @Json(name = "hosts") val hosts: List<Host>,
+    // The wizard's voice-design session, so picked voices are validated and unused candidates cleaned up.
+    @Json(name = "sessionId") val sessionId: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -41,7 +49,18 @@ data class UpdatePodcastRequest(
     @Json(name = "title") val title: String? = null,
     @Json(name = "description") val description: String? = null,
     @Json(name = "structure") val structure: String? = null,
-    @Json(name = "hosts") val hosts: List<Host>? = null
+    @Json(name = "hosts") val hosts: List<HostUpdate>? = null
+)
+
+/** Host in a PATCH body: a null [id] (omitted from JSON) tells the server it is a new host. */
+@JsonClass(generateAdapter = true)
+data class HostUpdate(
+    @Json(name = "id") val id: String? = null,
+    @Json(name = "name") val name: String,
+    @Json(name = "voice") val voice: String,
+    @Json(name = "persona") val persona: String,
+    @Json(name = "voicePrompt") val voicePrompt: String? = null,
+    @Json(name = "resolvedVoiceId") val resolvedVoiceId: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -49,6 +68,8 @@ data class PodcastOption(
     @Json(name = "title") val title: String,
     @Json(name = "description") val description: String,
     @Json(name = "structure") val structure: String,
+    // Returned by the wizard; keep it on the option and send it back on create.
+    @Json(name = "languageCode") val languageCode: String? = null,
     @Json(name = "hosts") val hosts: List<Host> = emptyList(),
     @Json(name = "predictedChanges") val predictedChanges: List<String> = emptyList()
 )
@@ -61,12 +82,15 @@ data class PodcastWizardOptionsRequest(
 
 @JsonClass(generateAdapter = true)
 data class PodcastWizardOptionsResponse(
+    // Voice-design session for this wizard run; echo it on revise and on create.
+    @Json(name = "sessionId") val sessionId: String? = null,
     @Json(name = "options") val options: List<PodcastOption>
 )
 
 @JsonClass(generateAdapter = true)
 data class PodcastWizardReviseRequest(
     @Json(name = "options") val options: List<PodcastOption>,
+    @Json(name = "sessionId") val sessionId: String? = null,
     @Json(name = "targetIndex") val targetIndex: Int? = null,
     @Json(name = "instruction") val instruction: String
 )
@@ -97,16 +121,19 @@ data class CreateDriveSourceRequest(
 // Episodes
 @JsonClass(generateAdapter = true)
 data class EpisodeGuest(
+    @Json(name = "id") val id: String? = null,
     @Json(name = "name") val name: String,
     @Json(name = "voice") val voice: String,
-    @Json(name = "persona") val persona: String
+    @Json(name = "persona") val persona: String,
+    @Json(name = "voicePrompt") val voicePrompt: String? = null,
+    @Json(name = "resolvedVoiceId") val resolvedVoiceId: String? = null
 )
 
 @JsonClass(generateAdapter = true)
 data class EpisodeDraft(
     @Json(name = "title") val title: String,
     @Json(name = "topics") val topics: String,
-    @Json(name = "productionNotes") val productionNotes: String = "",
+    @Json(name = "productionNotes") val productionNotes: String? = null,
     @Json(name = "guests") val guests: List<EpisodeGuest> = emptyList(),
     @Json(name = "predictedChanges") val predictedChanges: List<String> = emptyList()
 )
@@ -129,6 +156,9 @@ data class EpisodeWizardOptionsRequest(
 
 @JsonClass(generateAdapter = true)
 data class EpisodeWizardSuggestionsResponse(
+    @Json(name = "sessionId") val sessionId: String? = null,
+    // The podcast's language, for voice design; omitted by the server if the podcast has none.
+    @Json(name = "languageCode") val languageCode: String? = null,
     @Json(name = "suggestions") val suggestions: List<EpisodeSuggestion>
 )
 
@@ -136,6 +166,7 @@ data class EpisodeWizardSuggestionsResponse(
 data class EpisodeWizardReviseRequest(
     @Json(name = "suggestions") val suggestions: List<EpisodeSuggestion>,
     @Json(name = "length") val length: String,
+    @Json(name = "sessionId") val sessionId: String? = null,
     @Json(name = "targetSuggestionIndex") val targetSuggestionIndex: Int,
     @Json(name = "targetEpisodeIndex") val targetEpisodeIndex: Int? = null,
     @Json(name = "instruction") val instruction: String
@@ -149,14 +180,15 @@ data class EpisodeCreateInput(
     @Json(name = "sourceIds") val sourceIds: List<String>,
     @Json(name = "participantHostIds") val participantHostIds: List<String>,
     @Json(name = "guests") val guests: List<EpisodeGuest> = emptyList(),
-    @Json(name = "productionNotes") val productionNotes: String
+    @Json(name = "productionNotes") val productionNotes: String? = null
 )
 
 // Confirm always takes a whole suggestion's episodes array (1 entry, or 2 for
 // a split) in one request; the server creates and sequences them.
 @JsonClass(generateAdapter = true)
 data class CreateEpisodeRequest(
-    @Json(name = "episodes") val episodes: List<EpisodeCreateInput>
+    @Json(name = "episodes") val episodes: List<EpisodeCreateInput>,
+    @Json(name = "sessionId") val sessionId: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -168,7 +200,29 @@ data class CreateEpisodeResponse(
 data class UpdateEpisodeRequest(
     @Json(name = "title") val title: String? = null,
     @Json(name = "topics") val topics: String? = null,
-    @Json(name = "productionNotes") val productionNotes: String? = null
+    @Json(name = "productionNotes") val productionNotes: String? = null,
+    // Must have as many entries as the episode already has guests; see EpisodeGuest.id.
+    @Json(name = "guests") val guests: List<EpisodeGuest>? = null
+)
+
+// Voice design
+@JsonClass(generateAdapter = true)
+data class VoiceDesignRequest(
+    @Json(name = "sessionId") val sessionId: String,
+    @Json(name = "prompt") val prompt: String,
+    @Json(name = "languageCode") val languageCode: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class DesignedVoice(
+    @Json(name = "voiceId") val voiceId: String,
+    @Json(name = "previewUrl") val previewUrl: String
+)
+
+@JsonClass(generateAdapter = true)
+data class VoiceDesignResponse(
+    @Json(name = "sessionId") val sessionId: String,
+    @Json(name = "voices") val voices: List<DesignedVoice>
 )
 
 @JsonClass(generateAdapter = true)

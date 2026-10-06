@@ -1,5 +1,6 @@
 package com.rodrigos01.aipodcasts.ui.screens.episode
 
+import com.rodrigos01.aipodcasts.data.api.userMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -27,21 +28,17 @@ data class EpisodeDetailUiState(
     val status: String = "generating",
     val progress: EpisodeProgress? = null,
     val isPolling: Boolean = false,
-    val isRegenerating: Boolean = false,
     val errorMessage: String? = null,
     val savedPositionMs: Long = 0L,
     val showDeleteConfirm: Boolean = false,
     val isDeleting: Boolean = false,
-    val isDeleted: Boolean = false,
-    val showRegenerateConfirm: Boolean = false
+    val isDeleted: Boolean = false
 )
 
 private data class EpisodeDetailInternalFlags(
-    val isRegenerating: Boolean = false,
     val showDeleteConfirm: Boolean = false,
     val isDeleting: Boolean = false,
     val isDeleted: Boolean = false,
-    val showRegenerateConfirm: Boolean = false,
     val errorMessage: String? = null,
     val savedPositionMs: Long = 0L
 )
@@ -64,11 +61,11 @@ class EpisodeDetailViewModel(
 
     val uiState: StateFlow<EpisodeDetailUiState> = combine(
         podcastRepo.getPodcastFlow(podcastId).catch { e ->
-            _flags.value = _flags.value.copy(errorMessage = e.localizedMessage ?: e.message)
+            _flags.value = _flags.value.copy(errorMessage = e.userMessage())
             emit(null)
         },
         episodeRepo.getEpisodeFlow(podcastId, episodeId).catch { e ->
-            _flags.value = _flags.value.copy(errorMessage = e.localizedMessage ?: e.message)
+            _flags.value = _flags.value.copy(errorMessage = e.userMessage())
             emit(null)
         },
         _flags
@@ -80,13 +77,11 @@ class EpisodeDetailViewModel(
             status = episode?.status ?: "generating",
             progress = episode?.progress,
             isPolling = false,
-            isRegenerating = flags.isRegenerating,
             errorMessage = flags.errorMessage ?: episode?.error,
             savedPositionMs = flags.savedPositionMs,
             showDeleteConfirm = flags.showDeleteConfirm,
             isDeleting = flags.isDeleting,
             isDeleted = flags.isDeleted,
-            showRegenerateConfirm = flags.showRegenerateConfirm
         )
     }.stateIn(
         scope = viewModelScope,
@@ -125,36 +120,6 @@ class EpisodeDetailViewModel(
         }
     }
 
-    fun promptRegenerate() {
-        _flags.value = _flags.value.copy(showRegenerateConfirm = true)
-    }
-
-    fun dismissRegenerateConfirm() {
-        _flags.value = _flags.value.copy(showRegenerateConfirm = false)
-    }
-
-    fun confirmRegenerate(pId: String = podcastId, epId: String = episodeId) {
-        viewModelScope.launch {
-            _flags.value = _flags.value.copy(
-                showRegenerateConfirm = false,
-                isRegenerating = true,
-                errorMessage = null
-            )
-            try {
-                val success = episodeRepo.regenerateEpisode(pId, epId)
-                _flags.value = _flags.value.copy(
-                    isRegenerating = false,
-                    errorMessage = if (success) null else "Failed to regenerate episode"
-                )
-            } catch (e: Exception) {
-                _flags.value = _flags.value.copy(
-                    isRegenerating = false,
-                    errorMessage = e.localizedMessage ?: e.message ?: "Failed to regenerate episode"
-                )
-            }
-        }
-    }
-
     fun clearActionError() {
         _flags.value = _flags.value.copy(errorMessage = null)
     }
@@ -181,7 +146,7 @@ class EpisodeDetailViewModel(
                 _flags.value = _flags.value.copy(
                     isDeleting = false,
                     showDeleteConfirm = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             }
         }

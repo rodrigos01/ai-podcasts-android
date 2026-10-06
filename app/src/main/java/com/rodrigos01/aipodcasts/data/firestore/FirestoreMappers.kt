@@ -20,7 +20,9 @@ object FirestoreMappers {
                     id = item["id"] as? String ?: "",
                     name = item["name"] as? String ?: "",
                     voice = item["voice"] as? String ?: "",
-                    persona = item["persona"] as? String ?: ""
+                    persona = item["persona"] as? String ?: "",
+                    voicePrompt = item["voicePrompt"] as? String,
+                    resolvedVoiceId = item["resolvedVoiceId"] as? String
                 )
             } else null
         } ?: emptyList()
@@ -30,6 +32,7 @@ object FirestoreMappers {
             title = data["title"] as? String ?: "",
             description = data["description"] as? String ?: "",
             structure = data["structure"] as? String ?: "",
+            languageCode = data["languageCode"] as? String,
             hosts = hosts,
             createdAt = data["createdAt"]
         )
@@ -50,9 +53,12 @@ object FirestoreMappers {
         val guests = rawGuests?.mapNotNull { item ->
             if (item is Map<*, *>) {
                 EpisodeGuest(
+                    id = item["id"] as? String,
                     name = item["name"] as? String ?: "",
                     voice = item["voice"] as? String ?: "",
-                    persona = item["persona"] as? String ?: ""
+                    persona = item["persona"] as? String ?: "",
+                    voicePrompt = item["voicePrompt"] as? String,
+                    resolvedVoiceId = item["resolvedVoiceId"] as? String
                 )
             } else null
         } ?: emptyList()

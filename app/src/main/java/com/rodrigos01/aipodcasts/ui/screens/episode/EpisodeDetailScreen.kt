@@ -12,9 +12,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -37,7 +40,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -64,6 +69,7 @@ fun EpisodeDetailScreen(
     podcastId: String,
     episodeId: String,
     onNavigateBack: () -> Unit,
+    onNavigateToEdit: () -> Unit,
     viewModel: EpisodeDetailViewModel = viewModel(
         factory = EpisodeDetailViewModel.provideFactory(podcastId, episodeId)
     )
@@ -91,12 +97,10 @@ fun EpisodeDetailScreen(
         isPlaying = isPlaying,
         onNavigateBack = onNavigateBack,
         onDeleteClick = { viewModel.promptDelete() },
+        onEditClick = onNavigateToEdit,
         onPlayAudio = { forceRestart -> viewModel.playAudio(forceRestart) },
-        onRegenerateClick = { viewModel.promptRegenerate() },
         onConfirmDelete = { viewModel.confirmDelete() },
         onDismissDelete = { viewModel.dismissDeleteConfirm() },
-        onConfirmRegenerate = { viewModel.confirmRegenerate() },
-        onDismissRegenerate = { viewModel.dismissRegenerateConfirm() },
         onErrorShown = { viewModel.clearActionError() })
 }
 
@@ -109,12 +113,10 @@ private fun EpisodeDetailScreen(
     isPlaying: Boolean,
     onNavigateBack: () -> Unit,
     onDeleteClick: () -> Unit,
+    onEditClick: () -> Unit,
     onPlayAudio: (Boolean) -> Unit,
-    onRegenerateClick: () -> Unit,
     onConfirmDelete: () -> Unit,
     onDismissDelete: () -> Unit,
-    onConfirmRegenerate: () -> Unit,
-    onDismissRegenerate: () -> Unit,
     onErrorShown: () -> Unit
 ) {
     val isCurrentActiveEpisode = activeEpisodeId == uiState.episode?.id
@@ -139,17 +141,11 @@ private fun EpisodeDetailScreen(
             onNavigateBack = onNavigateBack,
             actions = {
                 if (uiState.episode != null) {
-                    IconButton(onClick = onRegenerateClick, enabled = !uiState.isRegenerating) {
-                        if (uiState.isRegenerating) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp), strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = stringResource(R.string.action_regenerate)
-                            )
-                        }
+                    IconButton(onClick = onEditClick) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = stringResource(R.string.action_edit)
+                        )
                     }
                     IconButton(onClick = onDeleteClick) {
                         Icon(
@@ -406,30 +402,6 @@ private fun EpisodeDetailScreen(
                         shape = ExpressiveShapes.large
             )
         }
-
-        if (uiState.showRegenerateConfirm) {
-            val title = uiState.episode?.title ?: ""
-            AlertDialog(
-                onDismissRequest = { if (!uiState.isRegenerating) onDismissRegenerate() },
-                title = { Text(stringResource(R.string.episode_regenerate_confirm_title)) },
-                text = { Text(stringResource(R.string.episode_regenerate_confirm, title)) },
-                confirmButton = {
-                    TextButton(
-                        onClick = onConfirmRegenerate, enabled = !uiState.isRegenerating
-                    ) {
-                        Text(stringResource(R.string.action_regenerate))
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = onDismissRegenerate, enabled = !uiState.isRegenerating
-                    ) {
-                        Text(stringResource(R.string.action_cancel))
-                    }
-                },
-                shape = ExpressiveShapes.large
-            )
-        }
     }
 
     SnackbarHost(
@@ -466,12 +438,10 @@ fun EpisodeDetailReadyPreview() {
             isPlaying = false,
             onNavigateBack = {},
             onDeleteClick = {},
+            onEditClick = {},
             onPlayAudio = {},
-            onRegenerateClick = {},
             onConfirmDelete = {},
             onDismissDelete = {},
-            onConfirmRegenerate = {},
-            onDismissRegenerate = {},
             onErrorShown = {})
     }
 }
@@ -501,12 +471,10 @@ fun EpisodeDetailGeneratingPreview() {
             isPlaying = false,
             onNavigateBack = {},
             onDeleteClick = {},
+            onEditClick = {},
             onPlayAudio = {},
-            onRegenerateClick = {},
             onConfirmDelete = {},
             onDismissDelete = {},
-            onConfirmRegenerate = {},
-            onDismissRegenerate = {},
             onErrorShown = {})
     }
 }

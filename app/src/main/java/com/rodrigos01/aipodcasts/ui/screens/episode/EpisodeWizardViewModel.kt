@@ -1,5 +1,6 @@
 package com.rodrigos01.aipodcasts.ui.screens.episode
 
+import com.rodrigos01.aipodcasts.data.api.userMessage
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -16,6 +17,7 @@ import com.rodrigos01.aipodcasts.data.model.Host
 import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.data.model.Source
 import com.rodrigos01.aipodcasts.data.repository.EpisodeRepository
+import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignController
 import com.rodrigos01.aipodcasts.data.repository.PodcastRepository
 import com.rodrigos01.aipodcasts.data.repository.SourceRepository
 import com.rodrigos01.aipodcasts.util.FileUtils
@@ -76,6 +78,10 @@ data class EpisodeWizardUiState(
     // One entry per episode in the selected suggestion, same order.
     val speakerSelections: List<SpeakerSelection> = emptyList(),
     val revisionInstruction: String = "",
+    // Voice-design session handed out by the wizard; echoed on revise and create.
+    val sessionId: String? = null,
+    // The podcast's language, returned by the wizard; used when designing guest voices.
+    val languageCode: String? = null,
     val confirmedEpisode: Episode? = null,
     val errorMessage: String? = null
 ) {
@@ -98,6 +104,13 @@ class EpisodeWizardViewModel(
     private val _uiState = MutableStateFlow(EpisodeWizardUiState())
     val uiState: StateFlow<EpisodeWizardUiState> = _uiState.asStateFlow()
 
+    // Designs go through the podcast repository's voices endpoint; sessions are the wizard's sessionId.
+    val voiceDesign = VoiceDesignController(viewModelScope, podcastRepo::designVoices)
+
+    override fun onCleared() {
+        voiceDesign.release()
+    }
+
     fun initWizard(podcastId: String) {
         viewModelScope.launch {
             try {
@@ -109,7 +122,7 @@ class EpisodeWizardViewModel(
                     selectedSourceIds = emptySet()
                 )
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(errorMessage = e.localizedMessage ?: e.message)
+                _uiState.value = _uiState.value.copy(errorMessage = e.userMessage())
             }
         }
     }
@@ -314,7 +327,7 @@ class EpisodeWizardViewModel(
             _uiState.value = _uiState.value.copy(
                 addSource = _uiState.value.addSource.copy(
                     isUploading = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             )
         }
@@ -449,18 +462,21 @@ class EpisodeWizardViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isDrafting = true, errorMessage = null)
             try {
-                val suggestions = episodeRepo.generateEpisodeSuggestions(
+                val result = episodeRepo.generateEpisodeSuggestions(
                     podcastId = podcastId,
                     sourceIds = sourceIds,
                     length = _uiState.value.episodeLength,
                     prompt = _uiState.value.steeringPrompt.trim().ifBlank { null }
                 )
+                val suggestions = result.suggestions
 
                 val firstEpisodes = suggestions.firstOrNull()?.episodes ?: emptyList()
 
                 _uiState.value = _uiState.value.copy(
                     isDrafting = false,
                     suggestions = suggestions,
+                    sessionId = result.sessionId,
+                    languageCode = result.languageCode,
                     selectedSuggestionIndex = 0,
                     selectedEpisodeIndex = 0,
                     speakerSelections = defaultSpeakerSelections(firstEpisodes),
@@ -469,7 +485,7 @@ class EpisodeWizardViewModel(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isDrafting = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             }
         }
@@ -502,6 +518,14 @@ class EpisodeWizardViewModel(
         val instruction = (instructionOverride ?: _uiState.value.revisionInstruction).trim()
         if (instruction.isBlank()) return
 
+        val selectedEpisodes = _uiState.value.currentEpisodes
+        if (selectedEpisodes.any { it.title.isBlank() || it.topics.isBlank() || it.guests.any { g -> g.name.isBlank() || g.persona.isBlank() } }) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Fill in every episode title and topics, and every guest's name and persona, before revising"
+            )
+            return
+        }
+
         val targetSuggestionIndex = _uiState.value.selectedSuggestionIndex
         val episodeCount = _uiState.value.currentEpisodes.size
         val requestedEpisodeIndex = episodeIndexOverride ?: _uiState.value.selectedEpisodeIndex
@@ -512,14 +536,16 @@ class EpisodeWizardViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isRevising = true, errorMessage = null)
             try {
-                val revised = episodeRepo.reviseEpisodeSuggestions(
+                val result = episodeRepo.reviseEpisodeSuggestions(
                     podcastId = podcastId,
                     suggestions = currentSuggestions,
                     length = _uiState.value.episodeLength,
                     targetSuggestionIndex = targetSuggestionIndex,
                     targetEpisodeIndex = targetEpisodeIndex,
-                    instruction = instruction
+                    instruction = instruction,
+                    sessionId = _uiState.value.sessionId
                 )
+                val revised = result.suggestions
                 val clampedSuggestionIndex = targetSuggestionIndex.coerceIn(0, (revised.size - 1).coerceAtLeast(0))
                 val newEpisodes = revised.getOrNull(clampedSuggestionIndex)?.episodes ?: emptyList()
                 val clampedEpisodeIndex = _uiState.value.selectedEpisodeIndex
@@ -540,6 +566,8 @@ class EpisodeWizardViewModel(
                 _uiState.value = _uiState.value.copy(
                     isRevising = false,
                     suggestions = revised,
+                    sessionId = result.sessionId ?: _uiState.value.sessionId,
+                    languageCode = result.languageCode ?: _uiState.value.languageCode,
                     selectedSuggestionIndex = clampedSuggestionIndex,
                     selectedEpisodeIndex = clampedEpisodeIndex,
                     speakerSelections = newSpeakerSelections,
@@ -548,9 +576,56 @@ class EpisodeWizardViewModel(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isRevising = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             }
+        }
+    }
+
+    /** Applies a manual edit to the draft currently shown in the pager. */
+    fun updateSelectedDraft(transform: (EpisodeDraft) -> EpisodeDraft) {
+        val state = _uiState.value
+        val suggestionIndex = state.selectedSuggestionIndex
+        val episodeIndex = state.selectedEpisodeIndex
+        val suggestion = state.suggestions.getOrNull(suggestionIndex) ?: return
+        if (episodeIndex !in suggestion.episodes.indices) return
+        val episodes = suggestion.episodes.toMutableList()
+        episodes[episodeIndex] = transform(episodes[episodeIndex])
+        _uiState.value = state.copy(
+            suggestions = state.suggestions.toMutableList().also {
+                it[suggestionIndex] = suggestion.copy(episodes = episodes)
+            },
+            errorMessage = null
+        )
+    }
+
+    /** Edits a guest of the current draft, keeping an already-selected copy of that guest in sync. */
+    fun updateGuest(guestIndex: Int, name: String, persona: String) =
+        editGuest(guestIndex) { it.copy(name = name, persona = persona) }
+
+    /** Opens the voice picker for a guest of the current draft. */
+    fun chooseGuestVoice(guestIndex: Int) {
+        val sessionId = _uiState.value.sessionId ?: return
+        val guest = _uiState.value.selectedDraft?.guests?.getOrNull(guestIndex) ?: return
+        voiceDesign.open(
+            sessionId = sessionId,
+            personName = guest.name,
+            prompt = guest.voicePrompt ?: "Name: ${guest.name}\n\n${guest.persona}",
+            languageCode = _uiState.value.languageCode ?: _uiState.value.podcast?.languageCode,
+            currentVoiceId = guest.resolvedVoiceId
+        ) { voiceId, prompt ->
+            editGuest(guestIndex) { it.copy(resolvedVoiceId = voiceId, voicePrompt = prompt) }
+        }
+    }
+
+    private fun editGuest(guestIndex: Int, transform: (EpisodeGuest) -> EpisodeGuest) {
+        val old = _uiState.value.selectedDraft?.guests?.getOrNull(guestIndex) ?: return
+        val updated = transform(old)
+        updateSelectedDraft { draft ->
+            draft.copy(guests = draft.guests.toMutableList().also { it[guestIndex] = updated })
+        }
+        updateSelectedSpeakerSelection { selection ->
+            selection.copy(guests = selection.guests.map { if (it.name == old.name) updated else it })
         }
     }
 
@@ -607,6 +682,13 @@ class EpisodeWizardViewModel(
             return
         }
 
+        if (episodes.any { it.title.isBlank() || it.topics.isBlank() || it.guests.any { g -> g.name.isBlank() || g.persona.isBlank() } }) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Every episode needs a title and topics, and every guest a name and persona"
+            )
+            return
+        }
+
         val sourceIds = _uiState.value.selectedSourceIds.toList()
         val length = _uiState.value.episodeLength
         val inputs = episodes.mapIndexed { index, draft ->
@@ -617,14 +699,14 @@ class EpisodeWizardViewModel(
                 sourceIds = sourceIds,
                 participantHostIds = selections[index].hostIds.toList(),
                 guests = selections[index].guests,
-                productionNotes = draft.productionNotes
+                productionNotes = draft.productionNotes?.trim()?.ifBlank { null }
             )
         }
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isConfirming = true, errorMessage = null)
             try {
-                val created = episodeRepo.createEpisodes(podcastId, inputs)
+                val created = episodeRepo.createEpisodes(podcastId, inputs, _uiState.value.sessionId)
                 _uiState.value = _uiState.value.copy(
                     isConfirming = false,
                     confirmedEpisode = created.firstOrNull()
@@ -632,7 +714,7 @@ class EpisodeWizardViewModel(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isConfirming = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             }
         }
