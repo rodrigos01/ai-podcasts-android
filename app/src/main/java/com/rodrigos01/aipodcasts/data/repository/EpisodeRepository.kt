@@ -19,7 +19,11 @@ import com.rodrigos01.aipodcasts.data.firestore.PodcastFirestoreDataSource
 import kotlinx.coroutines.flow.Flow
 
 /** Wizard suggestions plus the voice-design session id that goes with them. */
-data class EpisodeSuggestionsResult(val sessionId: String?, val suggestions: List<EpisodeSuggestion>)
+data class EpisodeSuggestionsResult(
+    val sessionId: String?,
+    val suggestions: List<EpisodeSuggestion>,
+    val languageCode: String? = null
+)
 
 class EpisodeRepository(
     private val api: PodcastApiService = ApiClient.apiService,
@@ -43,7 +47,7 @@ class EpisodeRepository(
     ): EpisodeSuggestionsResult {
         val request = EpisodeWizardOptionsRequest(sourceIds = sourceIds, prompt = prompt, length = length)
         val response = api.generateEpisodeSuggestions(podcastId, request)
-        return EpisodeSuggestionsResult(response.sessionId, response.suggestions)
+        return EpisodeSuggestionsResult(response.sessionId, response.suggestions, response.languageCode)
     }
 
     suspend fun reviseEpisodeSuggestions(
@@ -64,7 +68,7 @@ class EpisodeRepository(
             instruction = instruction
         )
         val response = api.reviseEpisodeSuggestions(podcastId, request)
-        return EpisodeSuggestionsResult(response.sessionId ?: sessionId, response.suggestions)
+        return EpisodeSuggestionsResult(response.sessionId ?: sessionId, response.suggestions, response.languageCode)
     }
 
     // Confirms a whole suggestion at once: 1 entry for a single episode, or 2

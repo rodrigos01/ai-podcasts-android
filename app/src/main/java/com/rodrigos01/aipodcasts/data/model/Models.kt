@@ -27,6 +27,8 @@ data class Podcast(
     @Json(name = "title") val title: String,
     @Json(name = "description") val description: String,
     @Json(name = "structure") val structure: String,
+    // BCP-47 tag (e.g. "pt-BR") the show is spoken in; voices are designed for it. Absent on older podcasts.
+    @Json(name = "languageCode") val languageCode: String? = null,
     @Json(name = "hosts") val hosts: List<Host> = emptyList(),
     @Json(name = "createdAt") val createdAt: Any? = null
 )
@@ -36,6 +38,7 @@ data class CreatePodcastRequest(
     @Json(name = "title") val title: String,
     @Json(name = "description") val description: String,
     @Json(name = "structure") val structure: String,
+    @Json(name = "languageCode") val languageCode: String? = null,
     @Json(name = "hosts") val hosts: List<Host>,
     // The wizard's voice-design session, so picked voices are validated and unused candidates cleaned up.
     @Json(name = "sessionId") val sessionId: String? = null
@@ -65,6 +68,8 @@ data class PodcastOption(
     @Json(name = "title") val title: String,
     @Json(name = "description") val description: String,
     @Json(name = "structure") val structure: String,
+    // Returned by the wizard; keep it on the option and send it back on create.
+    @Json(name = "languageCode") val languageCode: String? = null,
     @Json(name = "hosts") val hosts: List<Host> = emptyList(),
     @Json(name = "predictedChanges") val predictedChanges: List<String> = emptyList()
 )
@@ -152,6 +157,8 @@ data class EpisodeWizardOptionsRequest(
 @JsonClass(generateAdapter = true)
 data class EpisodeWizardSuggestionsResponse(
     @Json(name = "sessionId") val sessionId: String? = null,
+    // The podcast's language, for voice design; omitted by the server if the podcast has none.
+    @Json(name = "languageCode") val languageCode: String? = null,
     @Json(name = "suggestions") val suggestions: List<EpisodeSuggestion>
 )
 
@@ -202,7 +209,8 @@ data class UpdateEpisodeRequest(
 @JsonClass(generateAdapter = true)
 data class VoiceDesignRequest(
     @Json(name = "sessionId") val sessionId: String,
-    @Json(name = "prompt") val prompt: String
+    @Json(name = "prompt") val prompt: String,
+    @Json(name = "languageCode") val languageCode: String? = null
 )
 
 @JsonClass(generateAdapter = true)

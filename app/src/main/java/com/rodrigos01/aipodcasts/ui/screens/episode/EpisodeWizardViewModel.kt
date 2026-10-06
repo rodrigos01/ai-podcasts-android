@@ -79,6 +79,8 @@ data class EpisodeWizardUiState(
     val revisionInstruction: String = "",
     // Voice-design session handed out by the wizard; echoed on revise and create.
     val sessionId: String? = null,
+    // The podcast's language, returned by the wizard; used when designing guest voices.
+    val languageCode: String? = null,
     val confirmedEpisode: Episode? = null,
     val errorMessage: String? = null
 ) {
@@ -473,6 +475,7 @@ class EpisodeWizardViewModel(
                     isDrafting = false,
                     suggestions = suggestions,
                     sessionId = result.sessionId,
+                    languageCode = result.languageCode,
                     selectedSuggestionIndex = 0,
                     selectedEpisodeIndex = 0,
                     speakerSelections = defaultSpeakerSelections(firstEpisodes),
@@ -555,6 +558,7 @@ class EpisodeWizardViewModel(
                     isRevising = false,
                     suggestions = revised,
                     sessionId = result.sessionId ?: _uiState.value.sessionId,
+                    languageCode = result.languageCode ?: _uiState.value.languageCode,
                     selectedSuggestionIndex = clampedSuggestionIndex,
                     selectedEpisodeIndex = clampedEpisodeIndex,
                     speakerSelections = newSpeakerSelections,
@@ -598,6 +602,7 @@ class EpisodeWizardViewModel(
             sessionId = sessionId,
             personName = guest.name,
             prompt = guest.voicePrompt ?: "Name: ${guest.name}\n\n${guest.persona}",
+            languageCode = _uiState.value.languageCode ?: _uiState.value.podcast?.languageCode,
             currentVoiceId = guest.resolvedVoiceId
         ) { voiceId, prompt ->
             editGuest(guestIndex) { it.copy(resolvedVoiceId = voiceId, voicePrompt = prompt) }

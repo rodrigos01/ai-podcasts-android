@@ -34,7 +34,7 @@ data class VoiceDesignUiState(
  */
 class VoiceDesignController(
     private val scope: CoroutineScope,
-    private val designVoices: suspend (sessionId: String, prompt: String) -> List<DesignedVoice>,
+    private val designVoices: suspend (sessionId: String, prompt: String, languageCode: String?) -> List<DesignedVoice>,
     private val previewUrlFor: (voiceId: String) -> String = ApiClient::buildVoicePreviewUrl,
     val previewPlayer: VoicePreviewPlayer = VoicePreviewPlayer()
 ) {
@@ -43,6 +43,7 @@ class VoiceDesignController(
     val uiState: StateFlow<VoiceDesignUiState?> = _uiState.asStateFlow()
 
     private var sessionId: String = ""
+    private var languageCode: String? = null
     private var designJob: Job? = null
     private var onPicked: (voiceId: String, prompt: String) -> Unit = { _, _ -> }
 
@@ -50,16 +51,19 @@ class VoiceDesignController(
      * Opens the dialog for one person. If they already have a voice ([currentVoiceId]) it is shown
      * first and preselected, so it can be previewed and kept. [onPicked] is only called when a
      * different voice is chosen, with that voice and the prompt it was designed from.
+     * [languageCode] is the podcast's language, sent with every design request.
      */
     fun open(
         sessionId: String,
         personName: String,
         prompt: String,
+        languageCode: String? = null,
         currentVoiceId: String? = null,
         onPicked: (voiceId: String, prompt: String) -> Unit
     ) {
         cancelDesign()
         this.sessionId = sessionId
+        this.languageCode = languageCode
         this.onPicked = onPicked
         val current = currentVoiceId?.let { DesignedVoice(it, previewUrlFor(it)) }
         _uiState.value = VoiceDesignUiState(
@@ -83,7 +87,7 @@ class VoiceDesignController(
         val startedAt = System.currentTimeMillis()
         designJob = scope.launch {
             try {
-                val voices = designVoices(sessionId, prompt)
+                val voices = designVoices(sessionId, prompt, languageCode)
                 Log.d(TAG, "Designed ${voices.size} voices in ${System.currentTimeMillis() - startedAt}ms")
                 _uiState.update {
                     it?.copy(

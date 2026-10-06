@@ -91,9 +91,11 @@ class PodcastRepository(
         return PodcastOptionsResult(response.sessionId ?: sessionId, response.options)
     }
 
-    /** Designs up to 3 candidate voices from [prompt] within the given design session. */
-    suspend fun designVoices(sessionId: String, prompt: String): List<DesignedVoice> {
-        return api.designVoices(VoiceDesignRequest(sessionId = sessionId, prompt = prompt)).voices
+    /** Designs up to 3 candidate voices from [prompt] in the podcast's [languageCode] within the given design session. */
+    suspend fun designVoices(sessionId: String, prompt: String, languageCode: String? = null): List<DesignedVoice> {
+        return api.designVoices(
+            VoiceDesignRequest(sessionId = sessionId, prompt = prompt, languageCode = languageCode)
+        ).voices
     }
 
     suspend fun createPodcast(
@@ -101,12 +103,14 @@ class PodcastRepository(
         description: String,
         structure: String,
         hosts: List<Host>,
-        sessionId: String? = null
+        sessionId: String? = null,
+        languageCode: String? = null
     ): Podcast {
         val request = CreatePodcastRequest(
             title = title,
             description = description,
             structure = structure,
+            languageCode = languageCode,
             hosts = hosts,
             sessionId = sessionId
         )

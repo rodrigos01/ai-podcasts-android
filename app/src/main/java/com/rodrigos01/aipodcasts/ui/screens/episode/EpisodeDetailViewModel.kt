@@ -118,6 +118,7 @@ class EpisodeDetailViewModel(
             sessionId = episodeId,
             personName = guest.name,
             prompt = guest.voicePrompt ?: "Name: ${guest.name}\n\n${guest.persona}",
+            languageCode = uiState.value.podcast?.languageCode,
             currentVoiceId = guest.resolvedVoiceId,
             onPicked = onPicked
         )

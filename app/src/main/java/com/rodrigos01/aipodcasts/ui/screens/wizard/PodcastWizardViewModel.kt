@@ -51,6 +51,7 @@ class PodcastWizardViewModel(
             sessionId = sessionId,
             personName = host.name,
             prompt = host.voicePrompt ?: "Name: ${host.name}\n\n${host.persona}",
+            languageCode = state.options.getOrNull(state.selectedOptionIndex)?.languageCode,
             currentVoiceId = host.resolvedVoiceId
         ) { voiceId, prompt ->
             updateSelectedOption { option ->
@@ -195,7 +196,8 @@ class PodcastWizardViewModel(
                     description = chosen.description,
                     structure = chosen.structure,
                     hosts = chosen.hosts,
-                    sessionId = _uiState.value.sessionId
+                    sessionId = _uiState.value.sessionId,
+                    languageCode = chosen.languageCode
                 )
                 _uiState.value = _uiState.value.copy(
                     isCreating = false,

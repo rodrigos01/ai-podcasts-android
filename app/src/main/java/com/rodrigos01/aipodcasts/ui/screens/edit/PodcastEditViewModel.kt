@@ -52,6 +52,7 @@ class PodcastEditViewModel(
             sessionId = podcastId,
             personName = host.name.ifBlank { "host" },
             prompt = host.voicePrompt ?: "Name: ${host.name}\n\n${host.persona}",
+            languageCode = original?.languageCode,
             currentVoiceId = host.resolvedVoiceId
         ) { voiceId, prompt ->
             _uiState.update { state ->

@@ -45,7 +45,7 @@ class VoiceDesignTest {
         val scope = TestScope(UnconfinedTestDispatcher())
         val calls = mutableListOf<Pair<String, String>>()
         var batch = 0
-        val controller = VoiceDesignController(scope, { session, prompt ->
+        val controller = VoiceDesignController(scope, { session, prompt, _ ->
             calls += session to prompt
             batch++
             voices("a$batch", "b$batch", "c$batch")
@@ -77,7 +77,7 @@ class VoiceDesignTest {
     fun failedDesignKeepsPreviousCandidatesAndReportsTheError() {
         val scope = TestScope(UnconfinedTestDispatcher())
         var fail = false
-        val controller = VoiceDesignController(scope, { _, _ ->
+        val controller = VoiceDesignController(scope, { _, _, _ ->
             if (fail) throw IllegalStateException("Voice design failed, try again") else voices("a")
         })
         controller.open("s", "Maya", "prompt") { _, _ -> }
@@ -95,7 +95,7 @@ class VoiceDesignTest {
     fun blankPromptIsNotSent() {
         val scope = TestScope(UnconfinedTestDispatcher())
         var called = false
-        val controller = VoiceDesignController(scope, { _, _ -> called = true; voices("a") })
+        val controller = VoiceDesignController(scope, { _, _, _ -> called = true; voices("a") })
         controller.open("s", "Maya", "   ") { _, _ -> }
         controller.design()
         assertFalse(called)
@@ -106,7 +106,7 @@ class VoiceDesignTest {
         val scope = TestScope(UnconfinedTestDispatcher())
         val controller = VoiceDesignController(
             scope,
-            { _, _ -> voices("n1", "n2", "n3") },
+            { _, _, _ -> voices("n1", "n2", "n3") },
             previewUrlFor = { "https://api/voices/$it/preview" }
         )
         var picked: Pair<String, String>? = null
@@ -139,7 +139,7 @@ class VoiceDesignTest {
         val scope = TestScope(UnconfinedTestDispatcher())
         val first = CompletableDeferred<List<DesignedVoice>>()
         var calls = 0
-        val controller = VoiceDesignController(scope, { _, _ ->
+        val controller = VoiceDesignController(scope, { _, _, _ ->
             calls++
             if (calls == 1) first.await() else voices("fresh")
         })
@@ -158,5 +158,30 @@ class VoiceDesignTest {
 
         controller.design()
         assertEquals(listOf("fresh"), controller.uiState.value!!.candidates.map { it.voiceId })
+    }
+
+    @Test
+    fun podcastLanguageIsSentWithEveryDesignRequest() {
+        val scope = TestScope(UnconfinedTestDispatcher())
+        val languages = mutableListOf<String?>()
+        val controller = VoiceDesignController(scope, { _, _, language ->
+            languages += language
+            voices("a")
+        })
+        controller.open("s", "Maya", "prompt", languageCode = "pt-BR") { _, _ -> }
+        controller.design()
+        controller.design() // regenerate keeps the language
+        assertEquals(listOf<String?>("pt-BR", "pt-BR"), languages)
+
+        controller.open("s", "Maya", "prompt") { _, _ -> } // a podcast without a language
+        controller.design()
+        assertEquals(null, languages.last())
+    }
+
+    @Test
+    fun languageCodeIsMappedAndSerialized() {
+        val podcast = FirestoreMappers.mapToPodcast("p1", mapOf("languageCode" to "pt-BR"))
+        assertEquals("pt-BR", podcast.languageCode)
+        assertNull(FirestoreMappers.mapToPodcast("p2", emptyMap()).languageCode)
     }
 }
