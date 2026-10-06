@@ -1,5 +1,6 @@
 package com.rodrigos01.aipodcasts.ui.voice
 
+import com.rodrigos01.aipodcasts.data.api.userMessage
 import com.rodrigos01.aipodcasts.data.api.ApiClient
 import com.rodrigos01.aipodcasts.data.model.DesignedVoice
 import android.util.Log
@@ -103,7 +104,7 @@ class VoiceDesignController(
             } catch (e: Exception) {
                 Log.w(TAG, "Voice design failed after ${System.currentTimeMillis() - startedAt}ms", e)
                 _uiState.update {
-                    it?.copy(isDesigning = false, errorMessage = e.localizedMessage ?: e.message ?: "Voice design failed")
+                    it?.copy(isDesigning = false, errorMessage = e.userMessage() ?: "Voice design failed")
                 }
             }
         }

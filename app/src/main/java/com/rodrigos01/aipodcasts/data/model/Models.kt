@@ -133,7 +133,7 @@ data class EpisodeGuest(
 data class EpisodeDraft(
     @Json(name = "title") val title: String,
     @Json(name = "topics") val topics: String,
-    @Json(name = "productionNotes") val productionNotes: String = "",
+    @Json(name = "productionNotes") val productionNotes: String? = null,
     @Json(name = "guests") val guests: List<EpisodeGuest> = emptyList(),
     @Json(name = "predictedChanges") val predictedChanges: List<String> = emptyList()
 )

@@ -1,5 +1,6 @@
 package com.rodrigos01.aipodcasts.ui.screens.edit
 
+import com.rodrigos01.aipodcasts.data.api.userMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -84,7 +85,7 @@ class PodcastEditViewModel(
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(isLoading = false, errorMessage = e.localizedMessage ?: e.message)
+                    it.copy(isLoading = false, errorMessage = e.userMessage())
                 }
             }
         }
@@ -147,7 +148,7 @@ class PodcastEditViewModel(
                 _uiState.update { it.copy(isSaving = false, isSaved = true) }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(isSaving = false, errorMessage = e.localizedMessage ?: e.message)
+                    it.copy(isSaving = false, errorMessage = e.userMessage())
                 }
             }
         }

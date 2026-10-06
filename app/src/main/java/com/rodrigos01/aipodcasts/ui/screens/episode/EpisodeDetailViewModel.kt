@@ -1,5 +1,6 @@
 package com.rodrigos01.aipodcasts.ui.screens.episode
 
+import com.rodrigos01.aipodcasts.data.api.userMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -72,11 +73,11 @@ class EpisodeDetailViewModel(
 
     val uiState: StateFlow<EpisodeDetailUiState> = combine(
         podcastRepo.getPodcastFlow(podcastId).catch { e ->
-            _flags.value = _flags.value.copy(errorMessage = e.localizedMessage ?: e.message)
+            _flags.value = _flags.value.copy(errorMessage = e.userMessage())
             emit(null)
         },
         episodeRepo.getEpisodeFlow(podcastId, episodeId).catch { e ->
-            _flags.value = _flags.value.copy(errorMessage = e.localizedMessage ?: e.message)
+            _flags.value = _flags.value.copy(errorMessage = e.userMessage())
             emit(null)
         },
         _flags
@@ -205,7 +206,7 @@ class EpisodeDetailViewModel(
             } catch (e: Exception) {
                 _flags.value = _flags.value.copy(
                     isSavingEdit = false,
-                    errorMessage = e.localizedMessage ?: e.message ?: "Failed to save episode"
+                    errorMessage = e.userMessage() ?: "Failed to save episode"
                 )
             }
         }
@@ -228,7 +229,7 @@ class EpisodeDetailViewModel(
             } catch (e: Exception) {
                 _flags.value = _flags.value.copy(
                     isRegenerating = false,
-                    errorMessage = e.localizedMessage ?: e.message ?: "Failed to regenerate episode"
+                    errorMessage = e.userMessage() ?: "Failed to regenerate episode"
                 )
             }
         }
@@ -260,7 +261,7 @@ class EpisodeDetailViewModel(
                 _flags.value = _flags.value.copy(
                     isDeleting = false,
                     showDeleteConfirm = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             }
         }

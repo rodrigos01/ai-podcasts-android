@@ -60,7 +60,12 @@ class EpisodeRepository(
         sessionId: String? = null
     ): EpisodeSuggestionsResult {
         val request = EpisodeWizardReviseRequest(
-            suggestions = suggestions,
+            // The API rejects empty strings for optional fields, so blank notes must be omitted.
+            suggestions = suggestions.map { suggestion ->
+                suggestion.copy(episodes = suggestion.episodes.map { draft ->
+                    draft.copy(productionNotes = draft.productionNotes?.trim()?.ifBlank { null })
+                })
+            },
             length = length,
             sessionId = sessionId,
             targetSuggestionIndex = targetSuggestionIndex,

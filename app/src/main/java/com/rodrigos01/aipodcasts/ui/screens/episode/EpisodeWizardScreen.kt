@@ -1036,7 +1036,7 @@ fun DraftReviewCard(
             Spacer(modifier = Modifier.height(10.dp))
             EditableTextField(
                 label = stringResource(R.string.episode_wizard_notes_label),
-                value = draft.productionNotes,
+                value = draft.productionNotes.orEmpty(),
                 onValueChange = { v -> onUpdateDraft { it.copy(productionNotes = v) } },
                 textStyle = MaterialTheme.typography.bodySmall,
                 textColor = MaterialTheme.colorScheme.onSurfaceVariant,

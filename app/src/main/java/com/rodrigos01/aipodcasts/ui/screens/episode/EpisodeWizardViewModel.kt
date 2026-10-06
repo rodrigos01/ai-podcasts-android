@@ -1,5 +1,6 @@
 package com.rodrigos01.aipodcasts.ui.screens.episode
 
+import com.rodrigos01.aipodcasts.data.api.userMessage
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -121,7 +122,7 @@ class EpisodeWizardViewModel(
                     selectedSourceIds = emptySet()
                 )
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(errorMessage = e.localizedMessage ?: e.message)
+                _uiState.value = _uiState.value.copy(errorMessage = e.userMessage())
             }
         }
     }
@@ -326,7 +327,7 @@ class EpisodeWizardViewModel(
             _uiState.value = _uiState.value.copy(
                 addSource = _uiState.value.addSource.copy(
                     isUploading = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             )
         }
@@ -484,7 +485,7 @@ class EpisodeWizardViewModel(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isDrafting = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             }
         }
@@ -516,6 +517,14 @@ class EpisodeWizardViewModel(
         if (currentSuggestions.isEmpty()) return
         val instruction = (instructionOverride ?: _uiState.value.revisionInstruction).trim()
         if (instruction.isBlank()) return
+
+        val selectedEpisodes = _uiState.value.currentEpisodes
+        if (selectedEpisodes.any { it.title.isBlank() || it.topics.isBlank() || it.guests.any { g -> g.name.isBlank() || g.persona.isBlank() } }) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Fill in every episode title and topics, and every guest's name and persona, before revising"
+            )
+            return
+        }
 
         val targetSuggestionIndex = _uiState.value.selectedSuggestionIndex
         val episodeCount = _uiState.value.currentEpisodes.size
@@ -567,7 +576,7 @@ class EpisodeWizardViewModel(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isRevising = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             }
         }
@@ -690,7 +699,7 @@ class EpisodeWizardViewModel(
                 sourceIds = sourceIds,
                 participantHostIds = selections[index].hostIds.toList(),
                 guests = selections[index].guests,
-                productionNotes = draft.productionNotes.trim().ifBlank { null }
+                productionNotes = draft.productionNotes?.trim()?.ifBlank { null }
             )
         }
 
@@ -705,7 +714,7 @@ class EpisodeWizardViewModel(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isConfirming = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             }
         }

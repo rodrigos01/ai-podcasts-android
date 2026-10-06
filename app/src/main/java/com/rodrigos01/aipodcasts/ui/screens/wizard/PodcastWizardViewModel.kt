@@ -1,5 +1,6 @@
 package com.rodrigos01.aipodcasts.ui.screens.wizard
 
+import com.rodrigos01.aipodcasts.data.api.userMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rodrigos01.aipodcasts.AIPodcastsApplication
@@ -128,7 +129,7 @@ class PodcastWizardViewModel(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isGenerating = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             }
         }
@@ -140,6 +141,14 @@ class PodcastWizardViewModel(
 
         val currentOptions = _uiState.value.options
         if (currentOptions.isEmpty()) return
+        if (currentOptions.any { it.title.isBlank() || it.description.isBlank() || it.structure.isBlank() ||
+                it.hosts.any { h -> h.name.isBlank() || h.persona.isBlank() } }
+        ) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Fill in the title, description and structure, and every host's name and persona, before revising"
+            )
+            return
+        }
 
         // A predicted change belongs to the option it was shown on, so it always targets
         // the currently-selected option regardless of the selected/all toggle.
@@ -167,7 +176,7 @@ class PodcastWizardViewModel(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isRevising = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             }
         }
@@ -206,7 +215,7 @@ class PodcastWizardViewModel(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isCreating = false,
-                    errorMessage = e.localizedMessage ?: e.message
+                    errorMessage = e.userMessage()
                 )
             }
         }
