@@ -25,6 +25,8 @@ data class PodcastEditUiState(
     val hosts: List<Host> = emptyList(),
     /** Voice ids picked in this screen, so those hosts can be flagged as having a new voice. */
     val pickedVoiceIds: Set<String> = emptySet(),
+    /** The host whose voice picker is open inline, if any. */
+    val voiceHostIndex: Int? = null,
     val validationError: Boolean = false,
     val noHostsError: Boolean = false,
     val errorMessage: String? = null
@@ -49,6 +51,7 @@ class PodcastEditViewModel(
 
     fun chooseHostVoice(index: Int) {
         val host = _uiState.value.hosts.getOrNull(index) ?: return
+        _uiState.update { it.copy(voiceHostIndex = index) }
         voiceDesign.open(
             sessionId = podcastId,
             personName = host.name.ifBlank { "host" },
@@ -107,8 +110,11 @@ class PodcastEditViewModel(
         it.copy(hosts = it.hosts + Host(name = "", voice = "", persona = ""), noHostsError = false)
     }
 
-    fun removeHost(index: Int) = _uiState.update {
-        it.copy(hosts = it.hosts.filterIndexed { i, _ -> i != index })
+    fun removeHost(index: Int) {
+        voiceDesign.dismiss()
+        _uiState.update {
+            it.copy(hosts = it.hosts.filterIndexed { i, _ -> i != index }, voiceHostIndex = null)
+        }
     }
 
     fun clearError() = _uiState.update { it.copy(errorMessage = null) }

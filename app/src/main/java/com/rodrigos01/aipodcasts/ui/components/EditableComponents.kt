@@ -13,6 +13,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -25,6 +26,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.rodrigos01.aipodcasts.R
+import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignController
+import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignSection
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 
 /**
@@ -94,13 +97,14 @@ fun PersonEditDialog(
     onDismiss: () -> Unit,
     onSave: (name: String, persona: String) -> Unit,
     onChooseVoice: (() -> Unit)? = null,
-    hasPickedVoice: Boolean = false
+    hasPickedVoice: Boolean = false,
+    voiceDesign: VoiceDesignController? = null
 ) {
     var name by rememberSaveable { mutableStateOf(initialName) }
     var persona by rememberSaveable { mutableStateOf(initialPersona) }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { voiceDesign?.dismiss(); onDismiss() },
         title = { Text(stringResource(R.string.person_edit_title)) },
         text = {
             Column(
@@ -123,7 +127,8 @@ fun PersonEditDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = ExpressiveShapes.small
                 )
-                if (onChooseVoice != null) {
+                val voiceSession = voiceDesign?.uiState?.collectAsState()?.value
+                if (onChooseVoice != null && voiceSession == null) {
                     TextButton(onClick = onChooseVoice) {
                         Text(stringResource(R.string.voice_design_choose))
                     }
@@ -135,18 +140,20 @@ fun PersonEditDialog(
                         )
                     }
                 }
+                // The voice picker only appears once "Choose voice" is tapped, and lives in this dialog.
+                if (voiceDesign != null) VoiceDesignSection(voiceDesign)
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(name.trim(), persona.trim()) },
+                onClick = { voiceDesign?.dismiss(); onSave(name.trim(), persona.trim()) },
                 enabled = name.isNotBlank() && persona.isNotBlank()
             ) {
                 Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = { voiceDesign?.dismiss(); onDismiss() }) {
                 Text(stringResource(R.string.action_cancel))
             }
         },

@@ -88,7 +88,7 @@ import com.rodrigos01.aipodcasts.ui.components.PersonEditDialog
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
 import com.rodrigos01.aipodcasts.ui.components.plus
 import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
-import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignDialog
+import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignController
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 import com.rodrigos01.aipodcasts.util.FileUtils
 
@@ -189,10 +189,9 @@ fun EpisodeWizardScreen(
         onConfirmAndStartGeneration = { viewModel.confirmAndStartGeneration(podcastId) },
         onUpdateDraft = { viewModel.updateSelectedDraft(it) },
         onUpdateGuest = { index, name, persona -> viewModel.updateGuest(index, name, persona) },
-        onChooseGuestVoice = { viewModel.chooseGuestVoice(it) }
+        onChooseGuestVoice = { viewModel.chooseGuestVoice(it) },
+        voiceDesign = viewModel.voiceDesign
     )
-
-    VoiceDesignDialog(viewModel.voiceDesign)
 }
 
 @Composable
@@ -221,7 +220,8 @@ private fun EpisodeWizardScreen(
     onConfirmAndStartGeneration: () -> Unit,
     onUpdateDraft: ((EpisodeDraft) -> EpisodeDraft) -> Unit,
     onUpdateGuest: (Int, String, String) -> Unit,
-    onChooseGuestVoice: (Int) -> Unit
+    onChooseGuestVoice: (Int) -> Unit,
+    voiceDesign: VoiceDesignController?
 ) {
     var editingGuestIndex by rememberSaveable { mutableStateOf<Int?>(null) }
 
@@ -888,7 +888,8 @@ private fun EpisodeWizardScreen(
                     editingGuestIndex = null
                 },
                 onChooseVoice = { onChooseGuestVoice(index) },
-                hasPickedVoice = guest.resolvedVoiceId != null
+                hasPickedVoice = guest.resolvedVoiceId != null,
+                voiceDesign = voiceDesign
             )
         }
     }
@@ -1114,7 +1115,8 @@ fun EpisodeWizardStep1Preview() {
             onConfirmAndStartGeneration = {},
             onUpdateDraft = {},
             onUpdateGuest = { _, _, _ -> },
-            onChooseGuestVoice = {}
+            onChooseGuestVoice = {},
+            voiceDesign = null
         )
     }
 }
@@ -1171,7 +1173,8 @@ fun EpisodeWizardStep2Preview() {
             onConfirmAndStartGeneration = {},
             onUpdateDraft = {},
             onUpdateGuest = { _, _, _ -> },
-            onChooseGuestVoice = {}
+            onChooseGuestVoice = {},
+            voiceDesign = null
         )
     }
 }

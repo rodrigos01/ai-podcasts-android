@@ -31,7 +31,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -58,13 +57,11 @@ import com.rodrigos01.aipodcasts.data.model.Episode
 import com.rodrigos01.aipodcasts.data.model.EpisodeGuest
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
 import com.rodrigos01.aipodcasts.ui.components.LocalContentPadding
-import com.rodrigos01.aipodcasts.ui.components.PersonEditDialog
 import com.rodrigos01.aipodcasts.ui.components.StatusBadge
 import com.rodrigos01.aipodcasts.ui.components.VoiceChip
 import com.rodrigos01.aipodcasts.ui.components.plus
 import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
-import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignDialog
 
 @UnstableApi
 @Composable
@@ -72,6 +69,7 @@ fun EpisodeDetailScreen(
     podcastId: String,
     episodeId: String,
     onNavigateBack: () -> Unit,
+    onNavigateToEdit: () -> Unit,
     viewModel: EpisodeDetailViewModel = viewModel(
         factory = EpisodeDetailViewModel.provideFactory(podcastId, episodeId)
     )
@@ -99,19 +97,11 @@ fun EpisodeDetailScreen(
         isPlaying = isPlaying,
         onNavigateBack = onNavigateBack,
         onDeleteClick = { viewModel.promptDelete() },
-        onEditClick = { viewModel.promptEdit() },
-        onSaveEdit = { t, tp, n, g -> viewModel.saveEdit(t, tp, n, g) },
-        onChooseGuestVoice = { guest, onPicked -> viewModel.chooseGuestVoice(guest, onPicked) },
-        onDismissEdit = { viewModel.dismissEdit() },
+        onEditClick = onNavigateToEdit,
         onPlayAudio = { forceRestart -> viewModel.playAudio(forceRestart) },
-        onRegenerateClick = { viewModel.promptRegenerate() },
         onConfirmDelete = { viewModel.confirmDelete() },
         onDismissDelete = { viewModel.dismissDeleteConfirm() },
-        onConfirmRegenerate = { viewModel.confirmRegenerate() },
-        onDismissRegenerate = { viewModel.dismissRegenerateConfirm() },
         onErrorShown = { viewModel.clearActionError() })
-
-    VoiceDesignDialog(viewModel.voiceDesign)
 }
 
 @UnstableApi
@@ -124,15 +114,9 @@ private fun EpisodeDetailScreen(
     onNavigateBack: () -> Unit,
     onDeleteClick: () -> Unit,
     onEditClick: () -> Unit,
-    onSaveEdit: (String, String, String, List<EpisodeGuest>) -> Unit,
-    onChooseGuestVoice: (EpisodeGuest, (String, String) -> Unit) -> Unit,
-    onDismissEdit: () -> Unit,
     onPlayAudio: (Boolean) -> Unit,
-    onRegenerateClick: () -> Unit,
     onConfirmDelete: () -> Unit,
     onDismissDelete: () -> Unit,
-    onConfirmRegenerate: () -> Unit,
-    onDismissRegenerate: () -> Unit,
     onErrorShown: () -> Unit
 ) {
     val isCurrentActiveEpisode = activeEpisodeId == uiState.episode?.id
@@ -418,167 +402,6 @@ private fun EpisodeDetailScreen(
                         shape = ExpressiveShapes.large
             )
         }
-
-        val editingEpisode = uiState.episode
-        if (uiState.showEditDialog && editingEpisode != null) {
-            var title by remember { mutableStateOf(editingEpisode.title) }
-            var topics by remember { mutableStateOf(editingEpisode.topics) }
-            var notes by remember { mutableStateOf(editingEpisode.productionNotes ?: "") }
-            var guests by remember { mutableStateOf(editingEpisode.guests) }
-            var editingGuestIndex by remember { mutableStateOf<Int?>(null) }
-            val pickedVoiceIds = remember { mutableStateOf(setOf<String>()) }
-            AlertDialog(
-                onDismissRequest = { if (!uiState.isSavingEdit) onDismissEdit() },
-                title = { Text(stringResource(R.string.episode_edit_title)) },
-                text = {
-                    Column(
-                        modifier = Modifier.verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = title,
-                            onValueChange = { title = it },
-                            label = { Text(stringResource(R.string.episode_edit_field_title)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = ExpressiveShapes.small
-                        )
-                        OutlinedTextField(
-                            value = topics,
-                            onValueChange = { topics = it },
-                            label = { Text(stringResource(R.string.episode_edit_field_topics)) },
-                            minLines = 3,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = ExpressiveShapes.small
-                        )
-                        OutlinedTextField(
-                            value = notes,
-                            onValueChange = { notes = it },
-                            label = { Text(stringResource(R.string.episode_edit_field_notes)) },
-                            minLines = 3,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = ExpressiveShapes.small
-                        )
-                        if (guests.isNotEmpty()) {
-                            Text(
-                                text = stringResource(R.string.episode_edit_guests_header),
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.secondary
-                            )
-                            guests.forEachIndexed { index, guest ->
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(guest.name, style = MaterialTheme.typography.bodyMedium)
-                                        if (guest.resolvedVoiceId in pickedVoiceIds.value) {
-                                            Text(
-                                                text = stringResource(R.string.voice_design_picked),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                    }
-                                    IconButton(
-                                        onClick = { editingGuestIndex = index },
-                                        enabled = !uiState.isSavingEdit
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Edit,
-                                            contentDescription = stringResource(R.string.person_edit_content_desc, guest.name),
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        val hasUnsavedChanges = guests != editingEpisode.guests || title.trim() != editingEpisode.title ||
-                            topics.trim() != editingEpisode.topics ||
-                            notes.trim() != (editingEpisode.productionNotes ?: "")
-                        // Disabled with unsaved edits so regenerating can't silently discard them.
-                        TextButton(
-                            onClick = onRegenerateClick,
-                            enabled = !hasUnsavedChanges && !uiState.isSavingEdit && !uiState.isRegenerating
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(stringResource(R.string.action_regenerate))
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = { onSaveEdit(title, topics, notes, guests) },
-                        // The server rejects empty strings for these fields.
-                        enabled = !uiState.isSavingEdit && title.isNotBlank() &&
-                            guests.all { it.name.isNotBlank() && it.persona.isNotBlank() } &&
-                            topics.isNotBlank() && (notes.isNotBlank() || editingEpisode.productionNotes.isNullOrEmpty())
-                    ) {
-                        Text(stringResource(R.string.action_save))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = onDismissEdit, enabled = !uiState.isSavingEdit) {
-                        Text(stringResource(R.string.action_cancel))
-                    }
-                },
-                shape = ExpressiveShapes.large
-            )
-
-            editingGuestIndex?.let { index ->
-                guests.getOrNull(index)?.let { guest ->
-                    PersonEditDialog(
-                        initialName = guest.name,
-                        initialPersona = guest.persona,
-                        onDismiss = { editingGuestIndex = null },
-                        onSave = { name, persona ->
-                            guests = guests.toMutableList().also { it[index] = it[index].copy(name = name, persona = persona) }
-                            editingGuestIndex = null
-                        },
-                        onChooseVoice = {
-                            onChooseGuestVoice(guest) { voiceId, prompt ->
-                                guests = guests.toMutableList().also {
-                                    it[index] = it[index].copy(resolvedVoiceId = voiceId, voicePrompt = prompt)
-                                }
-                                pickedVoiceIds.value = pickedVoiceIds.value + voiceId
-                            }
-                        },
-                        hasPickedVoice = guest.resolvedVoiceId in pickedVoiceIds.value
-                    )
-                }
-            }
-        }
-
-        if (uiState.showRegenerateConfirm) {
-            val title = uiState.episode?.title ?: ""
-            AlertDialog(
-                onDismissRequest = { if (!uiState.isRegenerating) onDismissRegenerate() },
-                title = { Text(stringResource(R.string.episode_regenerate_confirm_title)) },
-                text = {
-                    Text(
-                        if (uiState.regenerateAfterEdit) stringResource(R.string.episode_edit_saved_regenerate)
-                        else stringResource(R.string.episode_regenerate_confirm, title)
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = onConfirmRegenerate, enabled = !uiState.isRegenerating
-                    ) {
-                        Text(stringResource(R.string.action_regenerate))
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = onDismissRegenerate, enabled = !uiState.isRegenerating
-                    ) {
-                        Text(stringResource(R.string.action_cancel))
-                    }
-                },
-                shape = ExpressiveShapes.large
-            )
-        }
     }
 
     SnackbarHost(
@@ -616,15 +439,9 @@ fun EpisodeDetailReadyPreview() {
             onNavigateBack = {},
             onDeleteClick = {},
             onEditClick = {},
-            onSaveEdit = { _, _, _, _ -> },
-            onChooseGuestVoice = { _, _ -> },
-            onDismissEdit = {},
             onPlayAudio = {},
-            onRegenerateClick = {},
             onConfirmDelete = {},
             onDismissDelete = {},
-            onConfirmRegenerate = {},
-            onDismissRegenerate = {},
             onErrorShown = {})
     }
 }
@@ -655,15 +472,9 @@ fun EpisodeDetailGeneratingPreview() {
             onNavigateBack = {},
             onDeleteClick = {},
             onEditClick = {},
-            onSaveEdit = { _, _, _, _ -> },
-            onChooseGuestVoice = { _, _ -> },
-            onDismissEdit = {},
             onPlayAudio = {},
-            onRegenerateClick = {},
             onConfirmDelete = {},
             onDismissDelete = {},
-            onConfirmRegenerate = {},
-            onDismissRegenerate = {},
             onErrorShown = {})
     }
 }

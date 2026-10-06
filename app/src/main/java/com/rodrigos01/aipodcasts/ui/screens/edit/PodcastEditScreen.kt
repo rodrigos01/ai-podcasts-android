@@ -43,7 +43,7 @@ import com.rodrigos01.aipodcasts.R
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
 import com.rodrigos01.aipodcasts.ui.components.LocalContentPadding
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
-import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignDialog
+import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignSection
 
 @Composable
 fun PodcastEditScreen(
@@ -191,6 +191,7 @@ fun PodcastEditScreen(
                                         )
                                     }
                                 }
+                                if (state.voiceHostIndex == index) VoiceDesignSection(viewModel.voiceDesign)
                             }
                         }
                     }
@@ -243,7 +244,6 @@ fun PodcastEditScreen(
                 }
             }
         }
-        VoiceDesignDialog(viewModel.voiceDesign)
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter)

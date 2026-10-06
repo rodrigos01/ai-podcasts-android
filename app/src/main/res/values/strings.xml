@@ -167,6 +167,7 @@
     <string name="voice_design_candidate">Voice %1$d</string>
     <string name="voice_design_play">Play preview</string>
     <string name="voice_design_pause">Stop preview</string>
+    <string name="voice_design_close">Close</string>
     <string name="voice_design_use">Use this voice</string>
     <string name="voice_design_preview_failed">Couldn\'t play that preview.</string>
     <string name="voice_design_choose">Choose voice</string>
@@ -187,6 +188,8 @@
     <string name="podcast_edit_error_required">Title, description and structure are required, and every host needs a name, voice and persona.</string>
     <string name="podcast_edit_error_hosts">A show needs at least one host.</string>
     <string name="episode_edit_title">Edit Episode</string>
+    <string name="episode_edit_error_required">Title and topics are required, and every guest needs a name and persona.</string>
+    <string name="episode_edit_not_now">Not now</string>
     <string name="episode_edit_guests_header">Guests</string>
     <string name="episode_edit_field_title">Title</string>
     <string name="episode_edit_field_topics">Topics</string>
