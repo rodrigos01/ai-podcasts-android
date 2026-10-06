@@ -237,7 +237,9 @@ data class EpisodeStatusResponse(
     @Json(name = "status") val status: String,
     @Json(name = "progress") val progress: EpisodeProgress? = null,
     @Json(name = "error") val error: String? = null,
-    @Json(name = "generatedAudioSeconds") val generatedAudioSeconds: Double? = null
+    @Json(name = "generatedAudioSeconds") val generatedAudioSeconds: Double? = null,
+    @Json(name = "audioComplete") val audioComplete: Boolean = false,
+    @Json(name = "audioDurationSeconds") val audioDurationSeconds: Double? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -264,6 +266,12 @@ data class Episode(
     @Json(name = "ttsPrompt") val ttsPrompt: String? = null,
     @Json(name = "error") val error: String? = null,
     @Json(name = "generatedAudioSeconds") val generatedAudioSeconds: Double? = null,
+    // True once the backend has cached every chunk, i.e. the audio is a finished file of
+    // exactly audioDurationSeconds. generatedAudioSeconds alone only says how much exists
+    // so far, and the stream itself can't say: a live response cut short looks like a
+    // complete file of whatever length arrived.
+    @Json(name = "audioComplete") val audioComplete: Boolean = false,
+    @Json(name = "audioDurationSeconds") val audioDurationSeconds: Double? = null,
     @Json(name = "createdAt") val createdAt: Any? = null
 )
 

@@ -42,10 +42,18 @@ class PodcastAudioController(
     private var progressJob: Job? = null
     private var statusPollJob: Job? = null
     private var reconnectJob: Job? = null
+    private var restartJob: Job? = null
     private var reconnectAttempt: Int = 0
     private var streamStartOffsetMs: Long = 0L
     private var currentPodcastId: String? = null
     private var currentIdToken: String? = null
+
+    // From the episode's Firestore doc (observeEpisodeAudioProgress): the backend's own word on
+    // whether the audio is finished, and its exact length. This - not anything ExoPlayer infers
+    // from the stream - decides "live" vs "complete": a live response that gets cut short makes
+    // ExoPlayer report a seekable, fully-known "file" of whatever length had arrived.
+    private var audioComplete: Boolean = false
+    private var audioDurationMs: Long = 0L
 
     private val _currentEpisode = MutableStateFlow<Episode?>(null)
     val currentEpisode: StateFlow<Episode?> = _currentEpisode.asStateFlow()
@@ -62,6 +70,10 @@ class PodcastAudioController(
     private val _currentPositionMs = MutableStateFlow(0L)
     val currentPositionMs: StateFlow<Long> = _currentPositionMs.asStateFlow()
 
+    // The episode's exact duration once the backend reports the audio complete; 0 while it is
+    // still generating (use generatedAudioSeconds for the scrubber bound then). Deliberately not
+    // ExoPlayer's own duration, which is relative to where this stream started and is a guess
+    // for a live response.
     private val _durationMs = MutableStateFlow(0L)
     val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
 
@@ -69,9 +81,9 @@ class PodcastAudioController(
     val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
 
     // How much of the episode's audio has been synthesized so far, in seconds.
-    // Null until the first status poll resolves; keeps updating until the stream itself
-    // comes back as a complete file (audio synthesis is on-demand and can lag behind the
-    // script/transcript's own "ready" status - see isCurrentStreamFullyGenerated).
+    // Null until the first Firestore snapshot resolves; keeps updating until the backend marks
+    // the audio complete (audio synthesis is on-demand and can lag behind the script/transcript's
+    // own "ready" status).
     private val _generatedAudioSeconds = MutableStateFlow<Double?>(null)
     val generatedAudioSeconds: StateFlow<Double?> = _generatedAudioSeconds.asStateFlow()
 
@@ -107,23 +119,17 @@ class PodcastAudioController(
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 _isBuffering.value = (playbackState == Player.STATE_BUFFERING)
-                val duration = player.duration
-                _durationMs.value = if (duration > 0) duration else 0L
 
                 if (playbackState == Player.STATE_ENDED) {
-                    if (isCurrentStreamFullyGenerated()) {
-                        // The backend served this as a normal, complete file (Content-Length +
-                        // Accept-Ranges) and we played it through to the end: a genuine finish.
-                        _currentEpisode.value?.let { ep ->
-                            playbackPositionRepository.clearPosition(ep.id)
-                        }
-                        _currentPositionMs.value = 0L
-                        streamStartOffsetMs = 0L
+                    val positionMs = streamStartOffsetMs + player.currentPosition.coerceAtLeast(0L)
+                    if (isGenuineEnd(positionMs, audioComplete, audioDurationMs)) {
+                        finishPlayback()
                     } else {
-                        // The stream was still chunked/growing (audio synthesis is on-demand and
-                        // can lag behind playback on any episode, "ready" script status or not):
-                        // we've just caught up to what's been synthesized so far, not reached the
-                        // real end. Keep the current position and reconnect to pick up more audio.
+                        // The response ended but the episode didn't: either we caught up to
+                        // audio that's still being synthesized, or the connection was closed
+                        // early (proxy timeout, network drop). Keep the position and reconnect
+                        // from it; never treat it as a finish.
+                        _currentPositionMs.value = positionMs
                         scheduleReconnect()
                     }
                 }
@@ -143,14 +149,10 @@ class PodcastAudioController(
         })
     }
 
-    // True only once the backend has served the current stream as a complete, known-length
-    // file (Content-Length + Accept-Ranges) rather than a still-growing chunked response.
-    // This is the one signal that actually reflects audio-generation completeness; the
-    // episode's own `status` field tracks script/transcript generation, which finishes
-    // before audio synthesis even starts (see docs/backend_docs.md's Audio section).
-    private fun isCurrentStreamFullyGenerated(): Boolean {
-        val player = mediaController ?: return false
-        return player.isCurrentMediaItemSeekable && player.duration > 0
+    private fun finishPlayback() {
+        _currentEpisode.value?.let { ep -> playbackPositionRepository.clearPosition(ep.id) }
+        _currentPositionMs.value = 0L
+        streamStartOffsetMs = 0L
     }
 
     private fun scheduleReconnect(forceRefreshToken: Boolean = false) {
@@ -185,8 +187,6 @@ class PodcastAudioController(
                             playbackPositionRepository.savePositionMs(ep.id, pos)
                         }
                     }
-                    val duration = player.duration
-                    _durationMs.value = if (duration > 0) duration else 0L
                 }
                 delay(500)
             }
@@ -203,9 +203,9 @@ class PodcastAudioController(
             episodeRepository.getEpisodeFlow(podcastId, episodeId).collect { episode ->
                 if (episode != null) {
                     _generatedAudioSeconds.value = episode.generatedAudioSeconds
-                    if (episode.status.equals("failed", ignoreCase = true) || isCurrentStreamFullyGenerated()) {
-                        statusPollJob?.cancel()
-                    }
+                    audioDurationMs = ((episode.audioDurationSeconds ?: 0.0) * 1000).toLong()
+                    audioComplete = episode.audioComplete && audioDurationMs > 0
+                    _durationMs.value = if (audioComplete) audioDurationMs else 0L
                 }
             }
         }
@@ -242,6 +242,9 @@ class PodcastAudioController(
             }
         }
         _generatedAudioSeconds.value = null
+        audioComplete = false
+        audioDurationMs = 0L
+        _durationMs.value = 0L
         observeEpisodeAudioProgress(podcastId, episode.id)
 
         val savedPosMs = if (forceFromBeginning) 0L else playbackPositionRepository.getPositionMs(episode.id)
@@ -291,23 +294,28 @@ class PodcastAudioController(
         }
     }
 
+    // The furthest position that exists: the exact duration once complete, otherwise how much has
+    // been synthesized so far.
+    private fun seekUpperBoundMs(): Long =
+        if (audioComplete) audioDurationMs else ((_generatedAudioSeconds.value ?: 0.0) * 1000).toLong()
+
     fun seekTo(positionMs: Long) {
         val player = mediaController ?: return
-        val duration = player.duration
-        if (player.isCurrentMediaItemSeekable && duration > 0) {
-            val playerTarget = (positionMs - streamStartOffsetMs).coerceIn(0L, duration)
-            player.seekTo(playerTarget)
-            _currentPositionMs.value = positionMs
+        val upperBoundMs = seekUpperBoundMs()
+        if (upperBoundMs <= 0L) return
+        val targetMs = positionMs.coerceIn(0L, upperBoundMs)
+
+        if (canSeekInPlayer(targetMs, streamStartOffsetMs, player.duration, player.isCurrentMediaItemSeekable)) {
+            player.seekTo(targetMs - streamStartOffsetMs)
+            _currentPositionMs.value = targetMs
             _currentEpisode.value?.let { ep ->
-                playbackPositionRepository.savePositionMs(ep.id, positionMs)
+                playbackPositionRepository.savePositionMs(ep.id, targetMs)
             }
         } else {
-            // Duration isn't known yet (still generating): the stream can't be seeked
-            // directly, so restart it from the target offset via the `?t=` param instead.
-            // Only valid up to how much audio has actually been generated so far.
-            val generatedMs = ((_generatedAudioSeconds.value ?: 0.0) * 1000).toLong()
-            if (generatedMs <= 0L) return
-            restartAtPositionMs(positionMs.coerceIn(0L, generatedMs))
+            // The current response can't reach the target (it's a live/unseekable stream, or the
+            // target is before where this `?t=` stream started or past where it ends), so open a
+            // new one starting there.
+            restartAtPositionMs(targetMs)
         }
     }
 
@@ -321,11 +329,11 @@ class PodcastAudioController(
         val podcastId = currentPodcastId ?: return
         val shouldPlay = forcePlay ?: player.isPlaying
 
-        streamStartOffsetMs = positionMs
         _currentPositionMs.value = positionMs
         playbackPositionRepository.savePositionMs(episode.id, positionMs)
 
-        scope.launch {
+        restartJob?.cancel()
+        restartJob = scope.launch {
             val freshToken = authRepository.getIdToken(forceRefresh = forceRefresh)
             if (!freshToken.isNullOrBlank()) {
                 currentIdToken = freshToken
@@ -342,6 +350,11 @@ class PodcastAudioController(
                 .setMediaMetadata(player.mediaMetadata)
                 .build()
 
+            // Switch the offset and the media item together: the progress loop adds the offset
+            // to the player's position, so changing the offset before the old item is replaced
+            // (e.g. while the token above is fetched) would briefly report - and persist - a
+            // wrong position.
+            streamStartOffsetMs = positionMs
             player.setMediaItem(mediaItem)
             player.prepare()
             if (shouldPlay) player.play()
@@ -349,16 +362,9 @@ class PodcastAudioController(
     }
 
     fun seekRelative(offsetSeconds: Int) {
-        val player = mediaController ?: return
-        val duration = player.duration
-        val upperBoundMs = if (player.isCurrentMediaItemSeekable && duration > 0) {
-            duration
-        } else {
-            ((_generatedAudioSeconds.value ?: 0.0) * 1000).toLong()
-        }
+        val upperBoundMs = seekUpperBoundMs()
         if (upperBoundMs <= 0L) return
-        val targetMs = (_currentPositionMs.value + (offsetSeconds * 1000L)).coerceIn(0L, upperBoundMs)
-        seekTo(targetMs)
+        seekTo(_currentPositionMs.value + (offsetSeconds * 1000L))
     }
 
     fun setPlaybackSpeed(speed: Float) {
@@ -373,11 +379,44 @@ class PodcastAudioController(
         stopProgressLoop()
         statusPollJob?.cancel()
         reconnectJob?.cancel()
+        restartJob?.cancel()
         controllerFuture?.let { MediaController.releaseFuture(it) }
     }
 
     companion object {
         const val MAX_RECONNECT_ATTEMPTS = 6
+
+        // How close to the end of the episode a stopped stream has to be to count as a genuine
+        // finish. ADTS frame boundaries and the 500ms position tick make "exactly the end" too
+        // strict.
+        const val END_TOLERANCE_MS = 3_000L
+
+        /**
+         * Whether a stream that just ended means the episode really finished. Only when the
+         * backend says the audio is complete AND playback reached its end: a response that merely
+         * closed (live edge, proxy timeout, dropped connection) is not a finish, however long
+         * ExoPlayer thinks the file is.
+         */
+        fun isGenuineEnd(positionMs: Long, audioComplete: Boolean, audioDurationMs: Long): Boolean =
+            audioComplete && audioDurationMs > 0 && positionMs >= audioDurationMs - END_TOLERANCE_MS
+
+        /**
+         * Whether [targetMs] (episode time) can be reached by seeking the player's current stream
+         * directly. That stream starts at [streamStartOffsetMs] and, if the player can seek it at
+         * all, is [playerDurationMs] long; a target outside that window needs a new `?t=` stream.
+         * The end is kept [END_TOLERANCE_MS] short so a seek to the very end of a stream that
+         * ExoPlayer sized too small (cut-off live response) still restarts instead of ending.
+         */
+        fun canSeekInPlayer(
+            targetMs: Long,
+            streamStartOffsetMs: Long,
+            playerDurationMs: Long,
+            isSeekable: Boolean
+        ): Boolean {
+            if (!isSeekable || playerDurationMs <= 0) return false
+            val relativeMs = targetMs - streamStartOffsetMs
+            return relativeMs >= 0 && relativeMs <= playerDurationMs - END_TOLERANCE_MS
+        }
 
         fun isHttp401(error: PlaybackException): Boolean {
             var cause: Throwable? = error
