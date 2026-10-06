@@ -2,7 +2,10 @@ package com.rodrigos01.aipodcasts.ui.voice
 
 import com.rodrigos01.aipodcasts.data.api.ApiClient
 import com.rodrigos01.aipodcasts.data.model.DesignedVoice
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,6 +43,7 @@ class VoiceDesignController(
     val uiState: StateFlow<VoiceDesignUiState?> = _uiState.asStateFlow()
 
     private var sessionId: String = ""
+    private var designJob: Job? = null
     private var onPicked: (voiceId: String, prompt: String) -> Unit = { _, _ -> }
 
     /**
@@ -54,6 +58,7 @@ class VoiceDesignController(
         currentVoiceId: String? = null,
         onPicked: (voiceId: String, prompt: String) -> Unit
     ) {
+        cancelDesign()
         this.sessionId = sessionId
         this.onPicked = onPicked
         val current = currentVoiceId?.let { DesignedVoice(it, previewUrlFor(it)) }
@@ -75,9 +80,11 @@ class VoiceDesignController(
 
         previewPlayer.stop()
         _uiState.update { it?.copy(isDesigning = true, errorMessage = null) }
-        scope.launch {
+        val startedAt = System.currentTimeMillis()
+        designJob = scope.launch {
             try {
                 val voices = designVoices(sessionId, prompt)
+                Log.d(TAG, "Designed ${voices.size} voices in ${System.currentTimeMillis() - startedAt}ms")
                 _uiState.update {
                     it?.copy(
                         isDesigning = false,
@@ -87,7 +94,10 @@ class VoiceDesignController(
                         selectedVoiceId = it.currentVoice?.voiceId
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                Log.w(TAG, "Voice design failed after ${System.currentTimeMillis() - startedAt}ms", e)
                 _uiState.update {
                     it?.copy(isDesigning = false, errorMessage = e.localizedMessage ?: e.message ?: "Voice design failed")
                 }
@@ -111,13 +121,26 @@ class VoiceDesignController(
         onPicked(voiceId, prompt)
     }
 
+    /**
+     * A request still in flight when the dialog closes or reopens must not land in whatever dialog
+     * is open next (it would show another person's candidates), so it is cancelled.
+     */
+    private fun cancelDesign() {
+        designJob?.cancel()
+        designJob = null
+    }
+
     fun dismiss() {
+        cancelDesign()
         previewPlayer.stop()
         _uiState.value = null
     }
 
     fun release() {
+        cancelDesign()
         previewPlayer.release()
         _uiState.value = null
     }
 }
+
+private const val TAG = "VoiceDesign"

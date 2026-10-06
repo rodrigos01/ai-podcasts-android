@@ -3,6 +3,7 @@ package com.rodrigos01.aipodcasts
 import com.rodrigos01.aipodcasts.data.firestore.FirestoreMappers
 import com.rodrigos01.aipodcasts.data.model.DesignedVoice
 import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignController
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -131,5 +132,31 @@ class VoiceDesignTest {
         controller.select("n3")
         controller.confirm()
         assertEquals("n3" to "prompt", picked)
+    }
+
+    @Test
+    fun aDesignStillInFlightWhenTheDialogReopensNeverLandsInTheNewOne() {
+        val scope = TestScope(UnconfinedTestDispatcher())
+        val first = CompletableDeferred<List<DesignedVoice>>()
+        var calls = 0
+        val controller = VoiceDesignController(scope, { _, _ ->
+            calls++
+            if (calls == 1) first.await() else voices("fresh")
+        })
+        controller.open("episode-1", "Sam", "prompt") { _, _ -> }
+        controller.design()
+        assertTrue(controller.uiState.value!!.isDesigning)
+
+        controller.dismiss()
+        controller.open("episode-1", "Alex", "other prompt") { _, _ -> }
+        first.complete(voices("stale"))
+
+        val state = controller.uiState.value!!
+        assertEquals("Alex", state.personName)
+        assertFalse(state.isDesigning)
+        assertTrue("the cancelled request must not fill the new dialog", state.candidates.isEmpty())
+
+        controller.design()
+        assertEquals(listOf("fresh"), controller.uiState.value!!.candidates.map { it.voiceId })
     }
 }
