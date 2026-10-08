@@ -20,6 +20,11 @@ data class EpisodeEditUiState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val isRegenerating: Boolean = false,
+    val status: String = "",
+    val showClearAudioConfirm: Boolean = false,
+    val isClearingAudio: Boolean = false,
+    /** A non-error notice for the snackbar. */
+    val infoMessage: String? = null,
     val title: String = "",
     val topics: String = "",
     val notes: String = "",
@@ -60,6 +65,7 @@ class EpisodeEditViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
+                        status = episode.status,
                         title = episode.title,
                         topics = episode.topics,
                         notes = episode.productionNotes.orEmpty(),
@@ -112,6 +118,7 @@ class EpisodeEditViewModel(
         }
 
     fun clearError() = _uiState.update { it.copy(errorMessage = null) }
+    fun clearInfo() = _uiState.update { it.copy(infoMessage = null) }
 
     fun save() {
         val before = original ?: return
@@ -152,6 +159,35 @@ class EpisodeEditViewModel(
         }
     }
 
+    fun promptClearAudio() = _uiState.update { it.copy(showClearAudioConfirm = true) }
+
+    fun dismissClearAudio() = _uiState.update { it.copy(showClearAudioConfirm = false, isDone = it.isDone || it.regenerateAfterSave) }
+
+    /** Clears only the cached audio; the script stays and the audio is rebuilt the next time it is played. */
+    fun confirmClearAudio() {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(showClearAudioConfirm = false, showRegenerateConfirm = false, isClearingAudio = true, errorMessage = null)
+            }
+            try {
+                episodeRepo.clearEpisodeAudio(podcastId, episodeId)
+                _uiState.update {
+                    it.copy(
+                        isClearingAudio = false,
+                        infoMessage = AUDIO_CLEARED_MESSAGE,
+                        // After a save this finishes the edit; the notice is shown on the previous screen's return.
+                        isDone = it.regenerateAfterSave,
+                        regenerateAfterSave = false
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isClearingAudio = false, errorMessage = e.userMessage() ?: "Failed to clear the audio")
+                }
+            }
+        }
+    }
+
     fun promptRegenerate() = _uiState.update { it.copy(showRegenerateConfirm = true, regenerateAfterSave = false) }
 
     /** Declining the regenerate prompt: after a save that finishes the edit; otherwise just closes it. */
@@ -183,3 +219,5 @@ class EpisodeEditViewModel(
             }
     }
 }
+
+private const val AUDIO_CLEARED_MESSAGE = "Audio cleared. It will be generated again the next time you play the episode."

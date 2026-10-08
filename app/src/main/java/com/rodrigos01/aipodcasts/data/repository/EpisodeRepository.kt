@@ -17,6 +17,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.rodrigos01.aipodcasts.data.firestore.PodcastFirestoreDataSource
 
 import kotlinx.coroutines.flow.Flow
+import retrofit2.HttpException
 
 /** Wizard suggestions plus the voice-design session id that goes with them. */
 data class EpisodeSuggestionsResult(
@@ -133,6 +134,15 @@ class EpisodeRepository(
     suspend fun deleteEpisode(podcastId: String, episodeId: String): Boolean {
         val res = api.deleteEpisode(podcastId, episodeId)
         return res.isSuccessful
+    }
+
+    /**
+     * Throws away the episode's cached audio so the next play synthesizes it again, keeping the
+     * script. Fails with an [HttpException] (e.g. 409 while a chunk is being generated).
+     */
+    suspend fun clearEpisodeAudio(podcastId: String, episodeId: String) {
+        val res = api.clearEpisodeAudio(podcastId, episodeId)
+        if (!res.isSuccessful) throw HttpException(res)
     }
 
     suspend fun regenerateEpisode(podcastId: String, episodeId: String): Boolean {

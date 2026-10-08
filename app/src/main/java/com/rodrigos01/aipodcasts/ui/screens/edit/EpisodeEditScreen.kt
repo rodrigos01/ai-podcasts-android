@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -61,6 +62,12 @@ fun EpisodeEditScreen(
     LaunchedEffect(state.isDone) {
         if (state.isDone) onNavigateBack()
     }
+    LaunchedEffect(state.infoMessage) {
+        state.infoMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearInfo()
+        }
+    }
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.let {
             snackbarHostState.showSnackbar(it)
@@ -68,7 +75,7 @@ fun EpisodeEditScreen(
         }
     }
 
-    val editable = !state.isLoading && !state.isSaving && !state.isRegenerating
+    val editable = !state.isLoading && !state.isSaving && !state.isRegenerating && !state.isClearingAudio
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -170,6 +177,19 @@ fun EpisodeEditScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(stringResource(R.string.action_regenerate))
                     }
+                    // Keeps the script; only the audio is rebuilt (e.g. after changing a voice).
+                    TextButton(
+                        onClick = viewModel::promptClearAudio,
+                        enabled = editable && !viewModel.hasUnsavedChanges && !state.status.equals("generating", ignoreCase = true)
+                    ) {
+                        if (state.isClearingAudio) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.GraphicEq, contentDescription = null, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.episode_edit_regenerate_audio))
+                    }
                 }
                 Button(
                     onClick = viewModel::save,
@@ -213,6 +233,25 @@ fun EpisodeEditScreen(
         }
     }
 
+    if (state.showClearAudioConfirm) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissClearAudio,
+            title = { Text(stringResource(R.string.episode_clear_audio_title)) },
+            text = { Text(stringResource(R.string.episode_clear_audio_confirm)) },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmClearAudio) {
+                    Text(stringResource(R.string.episode_edit_regenerate_audio))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissClearAudio) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+            shape = ExpressiveShapes.large
+        )
+    }
+
     if (state.showRegenerateConfirm) {
         AlertDialog(
             onDismissRequest = viewModel::dismissRegenerate,
@@ -224,8 +263,16 @@ fun EpisodeEditScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = viewModel::confirmRegenerate) {
-                    Text(stringResource(R.string.action_regenerate))
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton(onClick = viewModel::confirmRegenerate) {
+                        Text(stringResource(R.string.action_regenerate))
+                    }
+                    // A new voice doesn't change the script, so offer to redo just the audio.
+                    if (state.regenerateAfterSave && state.pickedVoiceIds.isNotEmpty()) {
+                        TextButton(onClick = viewModel::confirmClearAudio) {
+                            Text(stringResource(R.string.episode_edit_regenerate_audio))
+                        }
+                    }
                 }
             },
             dismissButton = {
