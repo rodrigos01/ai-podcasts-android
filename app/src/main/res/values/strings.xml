@@ -189,6 +189,9 @@
     <string name="podcast_edit_error_hosts">A show needs at least one host.</string>
     <string name="episode_edit_title">Edit Episode</string>
     <string name="episode_edit_error_required">Title and topics are required, and every guest needs a name and persona.</string>
+    <string name="episode_edit_regenerate_audio">Regenerate audio</string>
+    <string name="episode_clear_audio_title">Regenerate audio</string>
+    <string name="episode_clear_audio_confirm">This discards the episode\'s generated audio and keeps its script. The audio is generated again the next time you play it, so the first play may take a while.</string>
     <string name="episode_edit_not_now">Not now</string>
     <string name="episode_edit_guests_header">Guests</string>
     <string name="episode_edit_field_title">Title</string>

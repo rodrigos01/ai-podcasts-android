@@ -2,6 +2,7 @@ package com.rodrigos01.aipodcasts
 
 import com.rodrigos01.aipodcasts.data.api.PodcastApiService
 import com.rodrigos01.aipodcasts.data.api.parseErrorBody
+import com.rodrigos01.aipodcasts.data.api.userMessage
 import com.rodrigos01.aipodcasts.data.firestore.PodcastFirestoreDataSource
 import com.rodrigos01.aipodcasts.data.model.EpisodeDraft
 import com.rodrigos01.aipodcasts.data.model.EpisodeSuggestion
@@ -11,6 +12,8 @@ import com.rodrigos01.aipodcasts.data.repository.EpisodeRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Test
 import org.mockito.Mockito.mock
 
@@ -52,5 +55,28 @@ class WizardRevisePayloadTest {
         )
         assertNull(parseErrorBody("not json"))
         assertNull(parseErrorBody(null))
+    }
+}
+
+class ClearAudioTest {
+    @Test
+    fun clearAudioSurfacesAConflictAsAnHttpException() = runBlocking {
+        val body = """{"error":"HttpError","message":"Audio is being generated right now; try again once it has finished."}"""
+        val api = mock(PodcastApiService::class.java) { invocation ->
+            if (invocation.method.name == "clearEpisodeAudio") {
+                retrofit2.Response.error<Unit>(409, body.toResponseBody("application/json".toMediaType()))
+            } else null
+        }
+        val repo = EpisodeRepository(api, mock(PodcastFirestoreDataSource::class.java))
+
+        val failure = runCatching { repo.clearEpisodeAudio("p1", "e1") }.exceptionOrNull()
+        assertEquals(retrofit2.HttpException::class.java, failure?.javaClass)
+        assertEquals(
+            "Audio is being generated right now; try again once it has finished.",
+            failure?.userMessage()
+        )
+
+        val ok = mock(PodcastApiService::class.java) { retrofit2.Response.success(Unit) }
+        EpisodeRepository(ok, mock(PodcastFirestoreDataSource::class.java)).clearEpisodeAudio("p1", "e1")
     }
 }
