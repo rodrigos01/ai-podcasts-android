@@ -169,6 +169,13 @@ interface PodcastApiService {
         @Path("episodeId") episodeId: String
     ): Response<Unit>
 
+    /** Clears the episode's cached audio (and its generated-audio settings); the script is kept. */
+    @DELETE("podcasts/{podcastId}/episodes/{episodeId}/audio")
+    suspend fun clearEpisodeAudio(
+        @Path("podcastId") podcastId: String,
+        @Path("episodeId") episodeId: String
+    ): Response<Unit>
+
     @POST("podcasts/{podcastId}/episodes/{episodeId}/regenerate")
     suspend fun regenerateEpisode(
         @Path("podcastId") podcastId: String,
