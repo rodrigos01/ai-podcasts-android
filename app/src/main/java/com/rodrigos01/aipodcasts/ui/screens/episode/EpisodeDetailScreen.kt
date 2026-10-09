@@ -1,5 +1,6 @@
 package com.rodrigos01.aipodcasts.ui.screens.episode
 
+import com.rodrigos01.aipodcasts.ui.components.LocalSnackbarHostState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,8 +33,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -123,7 +122,7 @@ private fun EpisodeDetailScreen(
     val currentPosition = if (isCurrentActiveEpisode) activePositionMs else uiState.savedPositionMs
     val hasSavedProgress = currentPosition >= 3000L
     val formattedSavedTime = formatTimeMs(currentPosition)
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarHostState = LocalSnackbarHostState.current
 
     LaunchedEffect(uiState.errorMessage) {
         val message = uiState.errorMessage
@@ -403,11 +402,6 @@ private fun EpisodeDetailScreen(
             )
         }
     }
-
-    SnackbarHost(
-        hostState = snackbarHostState,
-        modifier = Modifier.align(Alignment.BottomCenter)
-    )
     }
 }
 

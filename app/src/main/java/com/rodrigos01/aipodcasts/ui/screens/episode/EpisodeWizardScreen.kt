@@ -1,5 +1,7 @@
 package com.rodrigos01.aipodcasts.ui.screens.episode
 
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.foundation.text.KeyboardOptions
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -342,6 +344,7 @@ private fun EpisodeWizardScreen(
                 Spacer(modifier = Modifier.height(18.dp))
 
                 OutlinedTextField(
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     value = uiState.steeringPrompt,
                     onValueChange = onSteeringPromptChanged,
                     label = { Text(stringResource(R.string.episode_wizard_prompt_label)) },
@@ -622,6 +625,7 @@ private fun EpisodeWizardScreen(
 
                 // Revise Draft Field
                 OutlinedTextField(
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     value = uiState.revisionInstruction,
                     onValueChange = onRevisionInstructionChanged,
                     label = { Text(stringResource(R.string.episode_wizard_revise_hint)) },
@@ -748,6 +752,7 @@ private fun EpisodeWizardScreen(
 
                                     Spacer(modifier = Modifier.height(12.dp))
                                     OutlinedTextField(
+                                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                                         value = addSourceState.sourceTitle,
                                         onValueChange = onAddSourceTitleChanged,
                                         label = { Text(stringResource(R.string.sources_source_title_label)) },
@@ -781,6 +786,7 @@ private fun EpisodeWizardScreen(
 
                                     Spacer(modifier = Modifier.height(12.dp))
                                     OutlinedTextField(
+                                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                                         value = addSourceState.sourceTitle,
                                         onValueChange = onAddSourceTitleChanged,
                                         label = { Text(stringResource(R.string.sources_source_title_label)) },
@@ -794,6 +800,7 @@ private fun EpisodeWizardScreen(
 
                             AddSourceMode.PLAIN_TEXT -> {
                                 OutlinedTextField(
+                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                                     value = addSourceState.sourceTitle,
                                     onValueChange = onAddSourceTitleChanged,
                                     label = { Text(stringResource(R.string.sources_source_title_label)) },
@@ -806,6 +813,7 @@ private fun EpisodeWizardScreen(
                                 Spacer(modifier = Modifier.height(10.dp))
 
                                 OutlinedTextField(
+                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                                     value = addSourceState.sourceContent,
                                     onValueChange = onAddSourceContentChanged,
                                     label = { Text(stringResource(R.string.sources_source_content_label)) },

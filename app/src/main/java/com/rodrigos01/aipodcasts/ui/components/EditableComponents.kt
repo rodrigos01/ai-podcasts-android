@@ -1,5 +1,7 @@
 package com.rodrigos01.aipodcasts.ui.components
 
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -73,6 +75,7 @@ fun EditableTextField(
         }
         if (editing && enabled) {
             OutlinedTextField(
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier.fillMaxWidth(),
@@ -112,6 +115,7 @@ fun PersonEditDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedTextField(
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     value = name,
                     onValueChange = { name = it },
                     label = { Text(stringResource(R.string.podcast_edit_host_name)) },
@@ -120,6 +124,7 @@ fun PersonEditDialog(
                     shape = ExpressiveShapes.small
                 )
                 OutlinedTextField(
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     value = persona,
                     onValueChange = { persona = it },
                     label = { Text(stringResource(R.string.podcast_edit_host_persona)) },

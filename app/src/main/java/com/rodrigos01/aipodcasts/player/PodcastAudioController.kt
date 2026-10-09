@@ -354,6 +354,37 @@ class PodcastAudioController(
         seekTo(_currentPositionMs.value + (offsetSeconds * 1000L))
     }
 
+    /**
+     * Stops playback for good: the saved position is kept, the player releases its media item
+     * (which closes the stream request) and the mini player goes away.
+     */
+    fun stop() {
+        _currentEpisode.value?.let { ep ->
+            playbackPositionRepository.savePositionMs(ep.id, _currentPositionMs.value)
+        }
+        _currentEpisode.value = null
+        _currentPodcastTitle.value = ""
+        stopProgressLoop()
+        episodeProgressJob?.cancel()
+        resumeJob?.cancel()
+        restartJob?.cancel()
+        resumeAttempts = 0
+        resumeBaselineMs = 0L
+        streamStartOffsetMs = 0L
+        currentPodcastId = null
+        audioComplete = false
+        audioDurationMs = 0L
+        _generatedAudioSeconds.value = null
+        _durationMs.value = 0L
+        _currentPositionMs.value = 0L
+        _isPlaying.value = false
+        _isBuffering.value = false
+        mediaController?.let { player ->
+            player.stop()
+            player.clearMediaItems()
+        }
+    }
+
     fun setPlaybackSpeed(speed: Float) {
         mediaController?.setPlaybackSpeed(speed)
         _playbackSpeed.value = speed
