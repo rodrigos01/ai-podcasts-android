@@ -1,12 +1,9 @@
 package com.rodrigos01.aipodcasts
 
-import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSpec
-import androidx.media3.datasource.HttpDataSource
 import com.rodrigos01.aipodcasts.data.repository.AuthRepository
 import com.rodrigos01.aipodcasts.player.AudioStreamTokenResolver
-import com.rodrigos01.aipodcasts.player.PodcastAudioController
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -14,7 +11,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
-import java.io.IOException
 
 @UnstableApi
 class AudioStreamAuthTest {
@@ -72,61 +68,5 @@ class AudioStreamAuthTest {
         assertTrue(urlClean.endsWith("/podcasts/pod-1/episodes/ep-1/audio/stream"))
         assertFalse(urlClean.contains("token="))
         assertFalse(urlClean.contains("?"))
-    }
-
-    @Test
-    fun testIsHttp401DetectionWithInvalidResponseCodeException() {
-        // 401 error code exception
-        val dataSpec = DataSpec.Builder().setUri(mock(android.net.Uri::class.java)).build()
-        val cause401 = HttpDataSource.InvalidResponseCodeException(
-            401,
-            "Unauthorized",
-            null,
-            emptyMap(),
-            dataSpec,
-            byteArrayOf()
-        )
-        val error401 = PlaybackException(
-            "Playback failed",
-            cause401,
-            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
-        )
-
-        assertTrue(PodcastAudioController.isHttp401(error401))
-
-        // 500 server error exception
-        val cause500 = HttpDataSource.InvalidResponseCodeException(
-            500,
-            "Internal Server Error",
-            null,
-            emptyMap(),
-            dataSpec,
-            byteArrayOf()
-        )
-        val error500 = PlaybackException(
-            "Playback failed",
-            cause500,
-            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
-        )
-
-        assertFalse(PodcastAudioController.isHttp401(error500))
-
-        // Generic IO exception
-        val genericError = PlaybackException(
-            "Network connection timed out",
-            IOException("Timeout"),
-            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
-        )
-
-        assertFalse(PodcastAudioController.isHttp401(genericError))
-
-        // Error message containing 401
-        val errorWithMessage = PlaybackException(
-            "Server returned 401 response",
-            null,
-            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
-        )
-
-        assertTrue(PodcastAudioController.isHttp401(errorWithMessage))
     }
 }

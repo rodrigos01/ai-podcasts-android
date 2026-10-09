@@ -91,6 +91,8 @@ object FirestoreMappers {
             ttsPrompt = data["ttsPrompt"] as? String,
             error = data["error"] as? String,
             generatedAudioSeconds = (data["generatedAudioSeconds"] as? Number)?.toDouble(),
+            audioComplete = data["audioComplete"] as? Boolean ?: false,
+            audioDurationSeconds = (data["audioDurationSeconds"] as? Number)?.toDouble(),
             createdAt = data["createdAt"]
         )
     }
@@ -123,7 +125,9 @@ object FirestoreMappers {
             status = data["status"] as? String ?: "generating",
             progress = progress,
             error = data["error"] as? String,
-            generatedAudioSeconds = generatedAudioSeconds
+            generatedAudioSeconds = generatedAudioSeconds,
+            audioComplete = data["audioComplete"] as? Boolean ?: false,
+            audioDurationSeconds = (data["audioDurationSeconds"] as? Number)?.toDouble()
         )
     }
 }

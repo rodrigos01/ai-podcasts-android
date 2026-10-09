@@ -4,7 +4,6 @@ import android.content.ComponentName
 import android.content.Context
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
-import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -12,7 +11,6 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
-import androidx.media3.datasource.HttpDataSource
 import com.rodrigos01.aipodcasts.data.api.ApiClient
 import com.rodrigos01.aipodcasts.data.model.Episode
 import com.rodrigos01.aipodcasts.data.repository.AuthRepository
@@ -40,12 +38,21 @@ class PodcastAudioController(
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var mediaController: MediaController? = null
     private var progressJob: Job? = null
-    private var statusPollJob: Job? = null
-    private var reconnectJob: Job? = null
-    private var reconnectAttempt: Int = 0
+    private var episodeProgressJob: Job? = null
+    private var restartJob: Job? = null
+    private var resumeJob: Job? = null
+    private var resumeAttempts: Int = 0
+    private var resumeBaselineMs: Long = 0L
     private var streamStartOffsetMs: Long = 0L
     private var currentPodcastId: String? = null
     private var currentIdToken: String? = null
+
+    // From the episode's Firestore doc (observeEpisodeAudioProgress): the backend's own word on
+    // whether the audio is finished, and its exact length. This - not anything ExoPlayer infers
+    // from the stream - decides "live" vs "complete": a live response that gets cut short makes
+    // ExoPlayer report a seekable, fully-known "file" of whatever length had arrived.
+    private var audioComplete: Boolean = false
+    private var audioDurationMs: Long = 0L
 
     private val _currentEpisode = MutableStateFlow<Episode?>(null)
     val currentEpisode: StateFlow<Episode?> = _currentEpisode.asStateFlow()
@@ -62,16 +69,18 @@ class PodcastAudioController(
     private val _currentPositionMs = MutableStateFlow(0L)
     val currentPositionMs: StateFlow<Long> = _currentPositionMs.asStateFlow()
 
+    // The episode's exact duration once the backend reports the audio complete; 0 while it is
+    // still generating (use generatedAudioSeconds for the scrubber bound then). Deliberately not
+    // ExoPlayer's own duration, which is relative to where this stream started and is a guess
+    // for a live response.
     private val _durationMs = MutableStateFlow(0L)
     val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
 
     private val _playbackSpeed = MutableStateFlow(1.0f)
     val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
 
-    // How much of the episode's audio has been synthesized so far, in seconds.
-    // Null until the first status poll resolves; keeps updating until the stream itself
-    // comes back as a complete file (audio synthesis is on-demand and can lag behind the
-    // script/transcript's own "ready" status - see isCurrentStreamFullyGenerated).
+    // How much of the episode's audio has been synthesized so far, in seconds, as pushed by
+    // the episode's Firestore document. Null until the first snapshot arrives.
     private val _generatedAudioSeconds = MutableStateFlow<Double?>(null)
     val generatedAudioSeconds: StateFlow<Double?> = _generatedAudioSeconds.asStateFlow()
 
@@ -98,7 +107,6 @@ class PodcastAudioController(
                     playbackPositionRepository.savePositionMs(currentEp.id, _currentPositionMs.value)
                 }
                 if (playing) {
-                    reconnectAttempt = 0
                     startProgressLoop()
                 } else {
                     stopProgressLoop()
@@ -107,70 +115,30 @@ class PodcastAudioController(
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 _isBuffering.value = (playbackState == Player.STATE_BUFFERING)
-                val duration = player.duration
-                _durationMs.value = if (duration > 0) duration else 0L
 
                 if (playbackState == Player.STATE_ENDED) {
-                    if (isCurrentStreamFullyGenerated()) {
-                        // The backend served this as a normal, complete file (Content-Length +
-                        // Accept-Ranges) and we played it through to the end: a genuine finish.
+                    val positionMs = streamStartOffsetMs + player.currentPosition.coerceAtLeast(0L)
+                    if (isGenuineEnd(positionMs, audioComplete, audioDurationMs)) {
                         _currentEpisode.value?.let { ep ->
                             playbackPositionRepository.clearPosition(ep.id)
                         }
                         _currentPositionMs.value = 0L
                         streamStartOffsetMs = 0L
                     } else {
-                        // The stream was still chunked/growing (audio synthesis is on-demand and
-                        // can lag behind playback on any episode, "ready" script status or not):
-                        // we've just caught up to what's been synthesized so far, not reached the
-                        // real end. Keep the current position and reconnect to pick up more audio.
-                        scheduleReconnect()
+                        // The response ended but the episode didn't: we caught up to audio that
+                        // is still being synthesized, or the connection was closed early (proxy
+                        // timeout, network drop). Keep the position and pick the stream back up
+                        // from it; never treat it as a finish.
+                        _currentPositionMs.value = positionMs
+                        resumeAfterEarlyEnd(positionMs)
                     }
                 }
-            }
-
-            override fun onPlayerError(error: PlaybackException) {
-                // A stalled/closed connection (e.g. the backend took longer than our read
-                // timeout to synthesize the next chunk) shouldn't kill playback for good:
-                // reconnect at the same position instead. If 401 Unauthorized, force refresh token.
-                val is401 = isHttp401(error)
-                scheduleReconnect(forceRefreshToken = is401)
             }
 
             override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
                 _playbackSpeed.value = playbackParameters.speed
             }
         })
-    }
-
-    // True only once the backend has served the current stream as a complete, known-length
-    // file (Content-Length + Accept-Ranges) rather than a still-growing chunked response.
-    // This is the one signal that actually reflects audio-generation completeness; the
-    // episode's own `status` field tracks script/transcript generation, which finishes
-    // before audio synthesis even starts (see docs/backend_docs.md's Audio section).
-    private fun isCurrentStreamFullyGenerated(): Boolean {
-        val player = mediaController ?: return false
-        return player.isCurrentMediaItemSeekable && player.duration > 0
-    }
-
-    private fun scheduleReconnect(forceRefreshToken: Boolean = false) {
-        val player = mediaController ?: return
-        // Only auto-reconnect if the user actually wanted playback to continue; if they'd
-        // already paused, leave it paused.
-        if (!player.playWhenReady) return
-        if (_currentEpisode.value == null || currentPodcastId == null) return
-        if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) return
-
-        reconnectJob?.cancel()
-        val resumeFromMs = _currentPositionMs.value
-        val backoffMs = if (forceRefreshToken) 500L else (3_000L shl reconnectAttempt).coerceAtMost(30_000L)
-        reconnectAttempt++
-        reconnectJob = scope.launch {
-            delay(backoffMs)
-            // A Range/`?t=` request resumes from exactly this position, triggering more
-            // synthesis on demand if it hasn't happened yet - no need to pre-poll for it.
-            restartAtPositionMs(resumeFromMs, forcePlay = true, forceRefresh = forceRefreshToken)
-        }
     }
 
     private fun startProgressLoop() {
@@ -185,8 +153,7 @@ class PodcastAudioController(
                             playbackPositionRepository.savePositionMs(ep.id, pos)
                         }
                     }
-                    val duration = player.duration
-                    _durationMs.value = if (duration > 0) duration else 0L
+                    if (pos >= resumeBaselineMs + RESUME_PROGRESS_RESET_MS) resumeAttempts = 0
                 }
                 delay(500)
             }
@@ -197,15 +164,36 @@ class PodcastAudioController(
         progressJob?.cancel()
     }
 
+    // Re-opens the stream at [positionMs] after it ended early. Not a retry loop for errors
+    // (ExoPlayer retries failed loads itself): this only covers a response that closed cleanly
+    // before the episode was over. Waits a moment so a genuine end isn't re-requested before the
+    // backend's completion flag reaches us, and gives up after a few attempts that made no
+    // progress.
+    private fun resumeAfterEarlyEnd(positionMs: Long) {
+        val player = mediaController ?: return
+        if (!player.playWhenReady) return
+        if (_currentEpisode.value == null || currentPodcastId == null) return
+        if (resumeAttempts >= MAX_RESUME_ATTEMPTS) return
+
+        resumeAttempts++
+        resumeBaselineMs = positionMs
+        resumeJob?.cancel()
+        resumeJob = scope.launch {
+            delay(RESUME_DELAY_MS)
+            if (isGenuineEnd(positionMs, audioComplete, audioDurationMs)) return@launch
+            restartAtPositionMs(positionMs, forcePlay = true)
+        }
+    }
+
     private fun observeEpisodeAudioProgress(podcastId: String, episodeId: String) {
-        statusPollJob?.cancel()
-        statusPollJob = scope.launch {
+        episodeProgressJob?.cancel()
+        episodeProgressJob = scope.launch {
             episodeRepository.getEpisodeFlow(podcastId, episodeId).collect { episode ->
                 if (episode != null) {
                     _generatedAudioSeconds.value = episode.generatedAudioSeconds
-                    if (episode.status.equals("failed", ignoreCase = true) || isCurrentStreamFullyGenerated()) {
-                        statusPollJob?.cancel()
-                    }
+                    audioDurationMs = ((episode.audioDurationSeconds ?: 0.0) * 1000).toLong()
+                    audioComplete = episode.audioComplete && audioDurationMs > 0
+                    _durationMs.value = if (audioComplete) audioDurationMs else 0L
                 }
             }
         }
@@ -227,8 +215,9 @@ class PodcastAudioController(
             }
         }
 
-        reconnectJob?.cancel()
-        reconnectAttempt = 0
+        resumeJob?.cancel()
+        resumeAttempts = 0
+        resumeBaselineMs = 0L
         _currentEpisode.value = episode
         _currentPodcastTitle.value = podcastTitle
         currentPodcastId = podcastId
@@ -242,6 +231,9 @@ class PodcastAudioController(
             }
         }
         _generatedAudioSeconds.value = null
+        audioComplete = false
+        audioDurationMs = 0L
+        _durationMs.value = 0L
         observeEpisodeAudioProgress(podcastId, episode.id)
 
         val savedPosMs = if (forceFromBeginning) 0L else playbackPositionRepository.getPositionMs(episode.id)
@@ -277,56 +269,60 @@ class PodcastAudioController(
     fun togglePlayPause() {
         val player = mediaController ?: return
         if (player.isPlaying) {
-            reconnectJob?.cancel()
+            resumeJob?.cancel()
             player.pause()
         } else if (player.playbackState == Player.STATE_ENDED || player.playbackState == Player.STATE_IDLE) {
-            // The underlying stream stalled or hit a clean EOF at the live generation edge:
-            // a plain play() here would restart the same media item from position 0, so
-            // reconnect at the position we actually stopped at instead.
-            reconnectJob?.cancel()
-            reconnectAttempt = 0
+            // A genuine finish leaves the position at 0 (replay from the start); a fatal error or
+            // a stream that ended before the episode did (live edge, closed connection) leaves it
+            // where we stopped, so re-open the stream there rather than replaying the old item.
+            resumeJob?.cancel()
+            resumeAttempts = 0
             restartAtPositionMs(_currentPositionMs.value, forcePlay = true)
         } else {
             player.play()
         }
     }
 
+    // The furthest position that exists: the exact duration once complete, otherwise how much has
+    // been synthesized so far.
+    private fun seekUpperBoundMs(): Long =
+        if (audioComplete) audioDurationMs else ((_generatedAudioSeconds.value ?: 0.0) * 1000).toLong()
+
     fun seekTo(positionMs: Long) {
         val player = mediaController ?: return
-        val duration = player.duration
-        if (player.isCurrentMediaItemSeekable && duration > 0) {
-            val playerTarget = (positionMs - streamStartOffsetMs).coerceIn(0L, duration)
-            player.seekTo(playerTarget)
-            _currentPositionMs.value = positionMs
+        val upperBoundMs = seekUpperBoundMs()
+        if (upperBoundMs <= 0L) return
+        val targetMs = positionMs.coerceIn(0L, upperBoundMs)
+
+        if (canSeekInPlayer(targetMs, streamStartOffsetMs, player.duration, player.isCurrentMediaItemSeekable)) {
+            player.seekTo(targetMs - streamStartOffsetMs)
+            _currentPositionMs.value = targetMs
             _currentEpisode.value?.let { ep ->
-                playbackPositionRepository.savePositionMs(ep.id, positionMs)
+                playbackPositionRepository.savePositionMs(ep.id, targetMs)
             }
         } else {
-            // Duration isn't known yet (still generating): the stream can't be seeked
-            // directly, so restart it from the target offset via the `?t=` param instead.
-            // Only valid up to how much audio has actually been generated so far.
-            val generatedMs = ((_generatedAudioSeconds.value ?: 0.0) * 1000).toLong()
-            if (generatedMs <= 0L) return
-            restartAtPositionMs(positionMs.coerceIn(0L, generatedMs))
+            // The current response can't reach the target (it's a live/unseekable stream, or the
+            // target is before where this `?t=` stream started or past where it ends), so open a
+            // new one starting there.
+            restartAtPositionMs(targetMs)
         }
     }
 
     private fun restartAtPositionMs(
         positionMs: Long,
-        forcePlay: Boolean? = null,
-        forceRefresh: Boolean = false
+        forcePlay: Boolean? = null
     ) {
         val player = mediaController ?: return
         val episode = _currentEpisode.value ?: return
         val podcastId = currentPodcastId ?: return
         val shouldPlay = forcePlay ?: player.isPlaying
 
-        streamStartOffsetMs = positionMs
         _currentPositionMs.value = positionMs
         playbackPositionRepository.savePositionMs(episode.id, positionMs)
 
-        scope.launch {
-            val freshToken = authRepository.getIdToken(forceRefresh = forceRefresh)
+        restartJob?.cancel()
+        restartJob = scope.launch {
+            val freshToken = authRepository.getIdToken(forceRefresh = false)
             if (!freshToken.isNullOrBlank()) {
                 currentIdToken = freshToken
             }
@@ -342,6 +338,11 @@ class PodcastAudioController(
                 .setMediaMetadata(player.mediaMetadata)
                 .build()
 
+            // Switch the offset and the media item together: the progress loop adds the offset
+            // to the player's position, so changing the offset before the old item is replaced
+            // (e.g. while the token above is fetched) would briefly report - and persist - a
+            // wrong position.
+            streamStartOffsetMs = positionMs
             player.setMediaItem(mediaItem)
             player.prepare()
             if (shouldPlay) player.play()
@@ -349,16 +350,8 @@ class PodcastAudioController(
     }
 
     fun seekRelative(offsetSeconds: Int) {
-        val player = mediaController ?: return
-        val duration = player.duration
-        val upperBoundMs = if (player.isCurrentMediaItemSeekable && duration > 0) {
-            duration
-        } else {
-            ((_generatedAudioSeconds.value ?: 0.0) * 1000).toLong()
-        }
-        if (upperBoundMs <= 0L) return
-        val targetMs = (_currentPositionMs.value + (offsetSeconds * 1000L)).coerceIn(0L, upperBoundMs)
-        seekTo(targetMs)
+        if (seekUpperBoundMs() <= 0L) return
+        seekTo(_currentPositionMs.value + (offsetSeconds * 1000L))
     }
 
     fun setPlaybackSpeed(speed: Float) {
@@ -371,27 +364,48 @@ class PodcastAudioController(
             playbackPositionRepository.savePositionMs(ep.id, _currentPositionMs.value)
         }
         stopProgressLoop()
-        statusPollJob?.cancel()
-        reconnectJob?.cancel()
+        episodeProgressJob?.cancel()
+        resumeJob?.cancel()
+        restartJob?.cancel()
         controllerFuture?.let { MediaController.releaseFuture(it) }
     }
 
     companion object {
-        const val MAX_RECONNECT_ATTEMPTS = 6
+        const val MAX_RESUME_ATTEMPTS = 6
+        const val RESUME_DELAY_MS = 2_000L
+        // Playback this far past where an early-end resume began counts as "it worked".
+        const val RESUME_PROGRESS_RESET_MS = 5_000L
 
-        fun isHttp401(error: PlaybackException): Boolean {
-            var cause: Throwable? = error
-            while (cause != null) {
-                if (cause is HttpDataSource.InvalidResponseCodeException && cause.responseCode == 401) {
-                    return true
-                }
-                val msg = cause.message
-                if (msg != null && msg.contains("401")) {
-                    return true
-                }
-                cause = cause.cause
-            }
-            return false
+        // How close to the end of the episode a stopped stream has to be to count as a genuine
+        // finish. ADTS frame boundaries and the 500ms position tick make "exactly the end" too
+        // strict.
+        const val END_TOLERANCE_MS = 3_000L
+
+        /**
+         * Whether a stream that just ended means the episode really finished. Only when the
+         * backend says the audio is complete AND playback reached its end: a response that merely
+         * closed (live edge, proxy timeout, dropped connection) is not a finish, however long
+         * ExoPlayer thinks the file is.
+         */
+        fun isGenuineEnd(positionMs: Long, audioComplete: Boolean, audioDurationMs: Long): Boolean =
+            audioComplete && audioDurationMs > 0 && positionMs >= audioDurationMs - END_TOLERANCE_MS
+
+        /**
+         * Whether [targetMs] (episode time) can be reached by seeking the player's current stream
+         * directly. That stream starts at [streamStartOffsetMs] and, if the player can seek it at
+         * all, is [playerDurationMs] long; a target outside that window needs a new `?t=` stream.
+         * The end is kept [END_TOLERANCE_MS] short so a seek to the very end of a stream that
+         * ExoPlayer sized too small (cut-off live response) still restarts instead of ending.
+         */
+        fun canSeekInPlayer(
+            targetMs: Long,
+            streamStartOffsetMs: Long,
+            playerDurationMs: Long,
+            isSeekable: Boolean
+        ): Boolean {
+            if (!isSeekable || playerDurationMs <= 0) return false
+            val relativeMs = targetMs - streamStartOffsetMs
+            return relativeMs >= 0 && relativeMs <= playerDurationMs - END_TOLERANCE_MS
         }
     }
 }
