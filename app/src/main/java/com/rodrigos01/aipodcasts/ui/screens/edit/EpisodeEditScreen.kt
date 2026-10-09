@@ -1,5 +1,8 @@
 package com.rodrigos01.aipodcasts.ui.screens.edit
 
+import com.rodrigos01.aipodcasts.ui.components.LocalSnackbarHostState
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,8 +27,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -56,7 +57,7 @@ fun EpisodeEditScreen(
     viewModel: EpisodeEditViewModel = viewModel(factory = EpisodeEditViewModel.provideFactory(podcastId, episodeId))
 ) {
     val state by viewModel.uiState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarHostState = LocalSnackbarHostState.current
     var editingGuestIndex by rememberSaveable { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(state.isDone) {
@@ -95,6 +96,7 @@ fun EpisodeEditScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     OutlinedTextField(
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         value = state.title,
                         onValueChange = viewModel::onTitleChanged,
                         label = { Text(stringResource(R.string.episode_edit_field_title)) },
@@ -103,6 +105,7 @@ fun EpisodeEditScreen(
                         enabled = editable
                     )
                     OutlinedTextField(
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         value = state.topics,
                         onValueChange = viewModel::onTopicsChanged,
                         label = { Text(stringResource(R.string.episode_edit_field_topics)) },
@@ -112,6 +115,7 @@ fun EpisodeEditScreen(
                         enabled = editable
                     )
                     OutlinedTextField(
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         value = state.notes,
                         onValueChange = viewModel::onNotesChanged,
                         label = { Text(stringResource(R.string.episode_edit_field_notes)) },
@@ -213,7 +217,6 @@ fun EpisodeEditScreen(
                 }
             }
         }
-        SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
     }
 
     editingGuestIndex?.let { index ->

@@ -1,5 +1,7 @@
 package com.rodrigos01.aipodcasts.ui.voice
 
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -60,6 +62,7 @@ fun VoiceDesignSection(controller: VoiceDesignController, modifier: Modifier = M
                 fontWeight = FontWeight.Bold
             )
             OutlinedTextField(
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 value = current.prompt,
                 onValueChange = controller::onPromptChanged,
                 label = { Text(stringResource(R.string.voice_design_prompt_label)) },

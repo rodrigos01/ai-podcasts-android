@@ -42,6 +42,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.layout.PaddingValues
+import com.rodrigos01.aipodcasts.BuildConfig
 import com.rodrigos01.aipodcasts.R
 import com.rodrigos01.aipodcasts.data.api.ApiClient
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
@@ -139,11 +140,19 @@ private fun SettingsScreen(
                             shape = ExpressiveShapes.extraSmall
                         )
                         FilterChip(
-                            selected = uiState.baseUrl == ApiClient.EMULATOR_LOCAL_BASE_URL,
-                            onClick = { onBaseUrlChanged(ApiClient.EMULATOR_LOCAL_BASE_URL) },
-                            label = { Text(stringResource(R.string.settings_server_preset_emulator)) },
+                            selected = uiState.baseUrl == ApiClient.STAGING_BASE_URL,
+                            onClick = { onBaseUrlChanged(ApiClient.STAGING_BASE_URL) },
+                            label = { Text(stringResource(R.string.settings_server_preset_staging)) },
                             shape = ExpressiveShapes.extraSmall
                         )
+                        if (BuildConfig.DEBUG) {
+                            FilterChip(
+                                selected = uiState.baseUrl == ApiClient.LOCAL_BASE_URL,
+                                onClick = { onBaseUrlChanged(ApiClient.LOCAL_BASE_URL) },
+                                label = { Text(stringResource(R.string.settings_server_preset_local)) },
+                                shape = ExpressiveShapes.extraSmall
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))

@@ -1,6 +1,20 @@
 package com.rodrigos01.aipodcasts.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animate
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalHapticFeedback
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -237,6 +251,10 @@ fun EmptyState(
     }
 }
 
+private const val DISMISS_THRESHOLD_FRACTION = 0.35f
+private const val PLAYING_COMMIT_FACTOR = 1.3f
+private const val PLAYING_RESISTANCE = 0.25f
+
 @UnstableApi
 @Composable
 fun MiniPlayerBar(
@@ -258,10 +276,47 @@ fun MiniPlayerBar(
     ) {
         val episode = currentEpisode ?: return@AnimatedVisibility
 
+        val haptics = LocalHapticFeedback.current
+        val coroutineScope = rememberCoroutineScope()
+        var widthPx by remember { mutableFloatStateOf(0f) }
+        var dragX by remember { mutableFloatStateOf(0f) }
+        val threshold = widthPx * DISMISS_THRESHOLD_FRACTION
+        // A playing mini player resists at the threshold and needs a deliberate extra pull;
+        // a paused one just goes.
+        val commitDistance = if (isPlaying) threshold * PLAYING_COMMIT_FACTOR else threshold
+
         Card(
             modifier = modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 6.dp)
+                .onSizeChanged { widthPx = it.width.toFloat() }
+                .graphicsLayer {
+                    translationX = dragX
+                    alpha = if (widthPx > 0f) {
+                        (1f - abs(dragX) / (widthPx * 1.2f)).coerceIn(0.2f, 1f)
+                    } else 1f
+                }
+                .draggable(
+                    orientation = Orientation.Horizontal,
+                    state = rememberDraggableState { delta ->
+                        val resisted = isPlaying && abs(dragX) >= threshold && dragX * delta > 0
+                        dragX += if (resisted) delta * PLAYING_RESISTANCE else delta
+                    },
+                    onDragStopped = {
+                        if (threshold > 0f && abs(dragX) >= commitDistance) {
+                            if (isPlaying) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            val target = if (dragX > 0) widthPx * 1.2f else -widthPx * 1.2f
+                            coroutineScope.launch {
+                                animate(dragX, target) { value, _ -> dragX = value }
+                                audioController.stop()
+                            }
+                        } else {
+                            coroutineScope.launch {
+                                animate(dragX, 0f) { value, _ -> dragX = value }
+                            }
+                        }
+                    }
+                )
                 .clickable { onOpenFullPlayer() },
             shape = ExpressiveShapes.medium,
             colors = CardDefaults.cardColors(
@@ -329,21 +384,29 @@ fun MiniPlayerBar(
                     }
                 }
 
+                val barModifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
                 if (durationMs > 0) {
                     val progress = (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
                     LinearProgressIndicator(
                         progress = { progress },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp),
+                        modifier = barModifier,
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                } else if (isPlaying || isBuffering) {
+                    // Length unknown while the episode is still generating: only animate while
+                    // audio is actually flowing, otherwise the bar keeps moving under a paused player.
+                    LinearProgressIndicator(
+                        modifier = barModifier,
                         color = MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 } else {
                     LinearProgressIndicator(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp),
+                        progress = { 0f },
+                        modifier = barModifier,
                         color = MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )

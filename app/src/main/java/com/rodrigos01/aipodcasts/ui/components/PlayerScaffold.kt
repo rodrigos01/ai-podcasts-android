@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
@@ -26,6 +28,11 @@ import com.rodrigos01.aipodcasts.ui.screens.player.PlayerSheet
 
 val LocalContentPadding = compositionLocalOf { PaddingValues() }
 
+/** Snackbar host owned by [PlayerScaffold], so snackbars stack above the mini player bar. */
+val LocalSnackbarHostState = compositionLocalOf<SnackbarHostState> {
+    error("No SnackbarHostState provided")
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @UnstableApi
 @Composable
@@ -37,6 +44,7 @@ fun PlayerScaffold(
     content: @Composable (PaddingValues) -> Unit
 ) {
     var showPlayerSheet by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val isKeyboardVisible = WindowInsets.isImeVisible
 
     // With edge-to-edge, windowSoftInputMode=adjustResize no longer shrinks the window, so the
@@ -46,6 +54,7 @@ fun PlayerScaffold(
         contentWindowInsets = ScaffoldDefaults.contentWindowInsets.only(
             WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom
         ),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             // The mini player is hidden while typing so it doesn't eat the space above the keyboard.
             if (showBottomBar && !isKeyboardVisible) {
@@ -63,7 +72,10 @@ fun PlayerScaffold(
             }
         }
     ) { padding ->
-        CompositionLocalProvider(LocalContentPadding provides padding) {
+        CompositionLocalProvider(
+            LocalContentPadding provides padding,
+            LocalSnackbarHostState provides snackbarHostState
+        ) {
             content(padding)
         }
     }

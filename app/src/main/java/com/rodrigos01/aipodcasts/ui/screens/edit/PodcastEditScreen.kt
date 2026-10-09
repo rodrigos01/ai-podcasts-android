@@ -1,5 +1,8 @@
 package com.rodrigos01.aipodcasts.ui.screens.edit
 
+import com.rodrigos01.aipodcasts.ui.components.LocalSnackbarHostState
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,8 +27,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,7 +53,7 @@ fun PodcastEditScreen(
     viewModel: PodcastEditViewModel = viewModel(factory = PodcastEditViewModel.provideFactory(podcastId))
 ) {
     val state by viewModel.uiState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarHostState = LocalSnackbarHostState.current
 
     LaunchedEffect(state.isSaved) {
         if (state.isSaved) onNavigateBack()
@@ -91,6 +92,7 @@ fun PodcastEditScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedTextField(
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         value = state.title,
                         onValueChange = viewModel::onTitleChanged,
                         label = { Text(stringResource(R.string.podcast_edit_field_title)) },
@@ -100,6 +102,7 @@ fun PodcastEditScreen(
                         enabled = editable
                     )
                     OutlinedTextField(
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         value = state.description,
                         onValueChange = viewModel::onDescriptionChanged,
                         label = { Text(stringResource(R.string.podcast_edit_field_description)) },
@@ -109,6 +112,7 @@ fun PodcastEditScreen(
                         enabled = editable
                     )
                     OutlinedTextField(
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         value = state.structure,
                         onValueChange = viewModel::onStructureChanged,
                         label = { Text(stringResource(R.string.podcast_edit_field_structure)) },
@@ -140,6 +144,7 @@ fun PodcastEditScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     OutlinedTextField(
+                                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                                         value = host.name,
                                         onValueChange = { viewModel.onHostChanged(index, host.copy(name = it)) },
                                         label = { Text(stringResource(R.string.podcast_edit_host_name)) },
@@ -160,6 +165,7 @@ fun PodcastEditScreen(
                                     }
                                 }
                                 OutlinedTextField(
+                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                                     value = host.voice,
                                     onValueChange = { viewModel.onHostChanged(index, host.copy(voice = it)) },
                                     label = { Text(stringResource(R.string.podcast_edit_host_voice)) },
@@ -168,6 +174,7 @@ fun PodcastEditScreen(
                                     enabled = editable
                                 )
                                 OutlinedTextField(
+                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                                     value = host.persona,
                                     onValueChange = { viewModel.onHostChanged(index, host.copy(persona = it)) },
                                     label = { Text(stringResource(R.string.podcast_edit_host_persona)) },
@@ -244,9 +251,5 @@ fun PodcastEditScreen(
                 }
             }
         }
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
     }
 }

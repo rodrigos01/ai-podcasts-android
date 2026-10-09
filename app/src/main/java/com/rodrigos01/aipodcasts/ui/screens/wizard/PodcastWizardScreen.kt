@@ -1,5 +1,7 @@
 package com.rodrigos01.aipodcasts.ui.screens.wizard
 
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -139,6 +141,7 @@ private fun PodcastWizardScreen(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 OutlinedTextField(
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     value = uiState.prompt,
                     onValueChange = onPromptChanged,
                     label = { Text(stringResource(R.string.wizard_prompt_label)) },
@@ -153,6 +156,7 @@ private fun PodcastWizardScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     value = uiState.sourceMaterial,
                     onValueChange = onSourceMaterialChanged,
                     label = { Text(stringResource(R.string.wizard_source_material_label)) },
@@ -279,6 +283,7 @@ private fun PodcastWizardScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         OutlinedTextField(
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                             value = uiState.revisionInstruction,
                             onValueChange = onRevisionInstructionChanged,
                             placeholder = { Text(stringResource(R.string.wizard_revise_hint)) },
