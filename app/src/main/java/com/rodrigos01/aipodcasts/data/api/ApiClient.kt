@@ -1,5 +1,6 @@
 package com.rodrigos01.aipodcasts.data.api
 
+import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -38,6 +39,22 @@ object ApiClient {
         chain.proceed(request)
     }
 
+    // Commands (POST/PUT/PATCH/DELETE) are the ones that wait on the LLM backend. Keep the app
+    // network-capable while they run, even if the user switches away.
+    private val keepAliveInterceptor = Interceptor { chain ->
+        if (chain.request().method == "GET") {
+            chain.proceed(chain.request())
+        } else {
+            val context = AIPodcastsApplication.instance
+            ApiKeepAliveService.acquire(context)
+            try {
+                chain.proceed(chain.request())
+            } finally {
+                ApiKeepAliveService.release(context)
+            }
+        }
+    }
+
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
     }
@@ -45,6 +62,7 @@ object ApiClient {
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(dynamicUrlInterceptor)
         .addInterceptor(AuthInterceptor())
+        .addInterceptor(keepAliveInterceptor)
         .addInterceptor(loggingInterceptor)
         .connectTimeout(60, TimeUnit.SECONDS)
         .readTimeout(120, TimeUnit.SECONDS)

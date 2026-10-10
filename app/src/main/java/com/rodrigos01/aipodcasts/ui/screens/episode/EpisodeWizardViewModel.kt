@@ -185,7 +185,7 @@ class EpisodeWizardViewModel(
                 selectedFileUri = uri,
                 selectedFileName = fileName,
                 isTextFile = isText,
-                sourceTitle = fileName,
+                sourceTitle = FileUtils.cleanFileName(fileName) ?: fileName,
                 errorMessage = null
             )
         )
@@ -224,7 +224,7 @@ class EpisodeWizardViewModel(
             addSource = _uiState.value.addSource.copy(
                 selectedFileUri = uri,
                 selectedFileName = rawTitle,
-                sourceTitle = rawTitle,
+                sourceTitle = cleanTitle,
                 isTextFile = isText,
                 isDriveResolving = true,
                 driveFileId = extractedDocId,
@@ -352,7 +352,7 @@ class EpisodeWizardViewModel(
                 val uri = addSourceState.selectedFileUri ?: return
                 val title = addSourceState.sourceTitle.trim()
                 val fileName = addSourceState.selectedFileName ?: "document"
-                val finalTitle = title.ifBlank { fileName }
+                val finalTitle = title.ifBlank { FileUtils.cleanFileName(fileName) ?: fileName }
                 val isText = addSourceState.isTextFile
 
                 viewModelScope.launch {
@@ -386,7 +386,7 @@ class EpisodeWizardViewModel(
                 val accessToken = addSourceState.driveAccessToken
                 val title = addSourceState.sourceTitle.trim()
                 val fileName = addSourceState.selectedFileName ?: "Google Drive Document"
-                val finalTitle = title.ifBlank { fileName }
+                val finalTitle = title.ifBlank { FileUtils.cleanFileName(fileName) ?: fileName }
 
                 viewModelScope.launch {
                     _uiState.value = _uiState.value.copy(addSource = addSourceState.copy(isUploading = true, errorMessage = null))
