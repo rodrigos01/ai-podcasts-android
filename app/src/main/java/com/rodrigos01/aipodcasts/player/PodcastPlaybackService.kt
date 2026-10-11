@@ -99,7 +99,9 @@ class PodcastPlaybackService : MediaSessionService() {
 
     // Hands the current item over to [to] at the same episode position and stops [from]. The
     // item's stream starts at a `?t=` offset that the controller records in its extras, so the
-    // new player's stream is re-opened at the absolute position rather than at 0.
+    // new player's stream is re-opened at the absolute position rather than at 0. Deliberately
+    // left paused on the new device (in either direction): the user presses play when ready,
+    // rather than audio suddenly starting on a TV or speaker.
     private fun switchPlayer(from: Player, to: Player) {
         val session = mediaSession ?: return
         if (session.player === to) return
@@ -107,7 +109,6 @@ class PodcastPlaybackService : MediaSessionService() {
         val item = from.currentMediaItem
         val offsetMs = item?.mediaMetadata?.extras?.getLong(PodcastAudioController.EXTRA_STREAM_OFFSET_MS) ?: 0L
         val positionMs = offsetMs + from.currentPosition.coerceAtLeast(0L)
-        val playWhenReady = from.playWhenReady
 
         from.stop()
         from.clearMediaItems()
@@ -115,7 +116,7 @@ class PodcastPlaybackService : MediaSessionService() {
 
         if (item != null) {
             // playWhenReady first: a CastPlayer includes it in the receiver load request.
-            to.playWhenReady = playWhenReady
+            to.playWhenReady = false
             to.setMediaItem(item.withStreamStart(positionMs))
             to.prepare()
         }
