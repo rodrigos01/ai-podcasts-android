@@ -1,41 +1,27 @@
 package com.rodrigos01.aipodcasts.data.repository
 
 import android.content.Context
-import android.content.SharedPreferences
+import com.rodrigos01.aipodcasts.sync.SyncedPositionStore
+import kotlinx.coroutines.flow.SharedFlow
 
+/**
+ * Per-episode resume position. Backed by the store shared with the Wear OS app, so progress made
+ * on either device is picked up on the other (last write wins).
+ */
 class PlaybackPositionRepository(context: Context) {
 
-    private val prefs: SharedPreferences = context.getSharedPreferences(
-        PREFS_NAME,
-        Context.MODE_PRIVATE
-    )
+    private val store = SyncedPositionStore.get(context)
 
-    fun getPositionMs(episodeId: String): Long {
-        if (episodeId.isBlank()) return 0L
-        return prefs.getLong(KEY_PREFIX_POS + episodeId, 0L)
-    }
+    /** Emits an episode id when its position was updated from the other device. */
+    val remoteUpdates: SharedFlow<String> get() = store.remoteUpdates
 
-    fun getPositionSeconds(episodeId: String): Double {
-        val ms = getPositionMs(episodeId)
-        return ms / 1000.0
-    }
+    fun getPositionMs(episodeId: String): Long = store.getPositionMs(episodeId)
 
-    fun savePositionMs(episodeId: String, positionMs: Long) {
-        if (episodeId.isBlank()) return
-        if (positionMs <= 0L) {
-            clearPosition(episodeId)
-        } else {
-            prefs.edit().putLong(KEY_PREFIX_POS + episodeId, positionMs).apply()
-        }
-    }
+    fun getPositionSeconds(episodeId: String): Double = getPositionMs(episodeId) / 1000.0
 
-    fun clearPosition(episodeId: String) {
-        if (episodeId.isBlank()) return
-        prefs.edit().remove(KEY_PREFIX_POS + episodeId).apply()
-    }
+    /** Progress ticks are throttled before syncing; pass [checkpoint] to sync immediately. */
+    fun savePositionMs(episodeId: String, positionMs: Long, checkpoint: Boolean = false) =
+        store.savePositionMs(episodeId, positionMs, checkpoint)
 
-    companion object {
-        private const val PREFS_NAME = "ai_podcasts_playback_positions"
-        private const val KEY_PREFIX_POS = "pos_"
-    }
+    fun clearPosition(episodeId: String) = store.clearPosition(episodeId)
 }

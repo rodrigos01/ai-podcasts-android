@@ -13,6 +13,7 @@ import com.rodrigos01.aipodcasts.data.repository.PodcastRepository
 import com.rodrigos01.aipodcasts.data.repository.SettingsRepository
 import com.rodrigos01.aipodcasts.data.repository.SourceRepository
 import com.rodrigos01.aipodcasts.player.PodcastAudioController
+import com.rodrigos01.aipodcasts.sync.PositionSync
 import com.rodrigos01.aipodcasts.watch.WatchAuthRelayHandler
 
 @UnstableApi
@@ -60,6 +61,8 @@ class AIPodcastsApplication : Application() {
             episodeRepository = episodeRepository,
             authRepository = authRepository
         )
+
+        PositionSync.start(this)
 
         // Alongside the manifest-declared WatchAuthRelayService: manifest delivery to a
         // non-running app is best-effort, so also listen live while this process is alive.

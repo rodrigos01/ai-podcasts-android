@@ -10,7 +10,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
-import com.rodrigos01.aipodcasts.wear.data.PlaybackPositionStore
+import com.rodrigos01.aipodcasts.sync.SyncedPositionStore
 import com.rodrigos01.aipodcasts.wear.data.WearConfig
 import com.rodrigos01.aipodcasts.wear.data.WearEpisode
 import com.rodrigos01.aipodcasts.wear.data.WearPodcastRepository
@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 @UnstableApi
 class WearAudioController(
     context: Context,
-    private val positions: PlaybackPositionStore,
+    private val positions: SyncedPositionStore,
     private val repository: WearPodcastRepository,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main)
 ) {
@@ -94,7 +94,7 @@ class WearAudioController(
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 _isPlaying.value = playing
-                _currentEpisode.value?.let { positions.savePositionMs(it.id, _positionMs.value) }
+                _currentEpisode.value?.let { positions.savePositionMs(it.id, _positionMs.value, checkpoint = true) }
                 if (playing) startProgressLoop() else progressJob?.cancel()
             }
 
@@ -178,13 +178,16 @@ class WearAudioController(
             return
         }
 
-        if (!fromBeginning && _currentEpisode.value?.id == episode.id) {
+        // Already loaded and still at the saved position: just resume. If the saved position moved
+        // since (progress made on the phone), fall through and reload from there.
+        val loadedAtSavedPosition = kotlin.math.abs(positions.getPositionMs(episode.id) - _positionMs.value) < 5_000L
+        if (!fromBeginning && _currentEpisode.value?.id == episode.id && loadedAtSavedPosition) {
             if (!player.isPlaying) togglePlayPause()
             return
         }
 
         _currentEpisode.value?.let { previous ->
-            if (previous.id != episode.id) positions.savePositionMs(previous.id, _positionMs.value)
+            if (previous.id != episode.id) positions.savePositionMs(previous.id, _positionMs.value, checkpoint = true)
         }
 
         resumeJob?.cancel()
@@ -200,7 +203,7 @@ class WearAudioController(
         observeEpisodeAudioProgress(podcastId, episode.id)
 
         val savedMs = if (fromBeginning) 0L else positions.getPositionMs(episode.id)
-        val startMs = if (PlaybackPositionStore.canResume(savedMs)) savedMs else 0L
+        val startMs = if (SyncedPositionStore.canResume(savedMs)) savedMs else 0L
         if (fromBeginning) positions.clearPosition(episode.id)
         streamStartOffsetMs = startMs
         _positionMs.value = startMs
@@ -247,7 +250,7 @@ class WearAudioController(
         if (StreamLogic.canSeekInPlayer(targetMs, streamStartOffsetMs, player.duration, player.isCurrentMediaItemSeekable)) {
             player.seekTo(targetMs - streamStartOffsetMs)
             _positionMs.value = targetMs
-            _currentEpisode.value?.let { positions.savePositionMs(it.id, targetMs) }
+            _currentEpisode.value?.let { positions.savePositionMs(it.id, targetMs, checkpoint = true) }
         } else {
             // The current response can't reach the target (live/unseekable, or outside the window
             // this `?t=` stream covers), so open a new one starting there.
@@ -262,7 +265,7 @@ class WearAudioController(
         val shouldPlay = forcePlay ?: player.isPlaying
 
         _positionMs.value = positionMs
-        positions.savePositionMs(episode.id, positionMs)
+        positions.savePositionMs(episode.id, positionMs, checkpoint = true)
 
         // Switch the offset and the media item together: the progress loop adds the offset to the
         // player's position, so changing one without the other would briefly report (and persist)

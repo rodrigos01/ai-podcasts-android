@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "ai-podcasts"
-include(":app", ":wear")
+include(":app", ":wear", ":sync")

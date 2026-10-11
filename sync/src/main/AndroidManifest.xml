@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Delivers position updates from the other device, even when the app isn't running. -->
+        <service
+            android:name="com.rodrigos01.aipodcasts.sync.PositionSyncListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/aipodcasts/position/" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

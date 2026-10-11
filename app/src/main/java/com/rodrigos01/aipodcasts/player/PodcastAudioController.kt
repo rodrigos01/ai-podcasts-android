@@ -109,7 +109,7 @@ class PodcastAudioController(
                 _isPlaying.value = playing
                 val currentEp = _currentEpisode.value
                 if (currentEp != null) {
-                    playbackPositionRepository.savePositionMs(currentEp.id, _currentPositionMs.value)
+                    playbackPositionRepository.savePositionMs(currentEp.id, _currentPositionMs.value, checkpoint = true)
                 }
                 if (playing) {
                     startProgressLoop()
@@ -226,7 +226,7 @@ class PodcastAudioController(
         // Persist position of previously playing episode before switching
         _currentEpisode.value?.let { prevEp ->
             if (prevEp.id != episode.id) {
-                playbackPositionRepository.savePositionMs(prevEp.id, _currentPositionMs.value)
+                playbackPositionRepository.savePositionMs(prevEp.id, _currentPositionMs.value, checkpoint = true)
             }
         }
 
@@ -298,7 +298,7 @@ class PodcastAudioController(
             player.seekTo(targetMs - streamStartOffsetMs)
             _currentPositionMs.value = targetMs
             _currentEpisode.value?.let { ep ->
-                playbackPositionRepository.savePositionMs(ep.id, targetMs)
+                playbackPositionRepository.savePositionMs(ep.id, targetMs, checkpoint = true)
             }
         } else {
             // The current response can't reach the target (it's a live/unseekable stream, or the
@@ -318,7 +318,7 @@ class PodcastAudioController(
         val shouldPlay = forcePlay ?: player.isPlaying
 
         _currentPositionMs.value = positionMs
-        playbackPositionRepository.savePositionMs(episode.id, positionMs)
+        playbackPositionRepository.savePositionMs(episode.id, positionMs, checkpoint = true)
 
         openStream(positionMs, player.mediaMetadata, shouldPlay)
     }
@@ -415,7 +415,7 @@ class PodcastAudioController(
 
     fun release() {
         _currentEpisode.value?.let { ep ->
-            playbackPositionRepository.savePositionMs(ep.id, _currentPositionMs.value)
+            playbackPositionRepository.savePositionMs(ep.id, _currentPositionMs.value, checkpoint = true)
         }
         stopProgressLoop()
         episodeProgressJob?.cancel()

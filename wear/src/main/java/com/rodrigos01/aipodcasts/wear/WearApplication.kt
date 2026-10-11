@@ -6,10 +6,11 @@ import com.google.android.gms.wearable.Wearable
 import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.rodrigos01.aipodcasts.wear.auth.WearAuthResultHandler
-import com.rodrigos01.aipodcasts.wear.data.PlaybackPositionStore
 import com.rodrigos01.aipodcasts.wear.data.WearConfig
 import com.rodrigos01.aipodcasts.wear.data.WearPodcastRepository
 import com.rodrigos01.aipodcasts.wear.player.WearAudioController
+import com.rodrigos01.aipodcasts.sync.PositionSync
+import com.rodrigos01.aipodcasts.sync.SyncedPositionStore
 
 /** Hand-wired singletons, same approach as the phone's `AIPodcastsApplication` (no DI framework). */
 @UnstableApi
@@ -18,7 +19,7 @@ class WearApplication : Application() {
     lateinit var podcastRepository: WearPodcastRepository
         private set
 
-    lateinit var playbackPositions: PlaybackPositionStore
+    lateinit var playbackPositions: SyncedPositionStore
         private set
 
     lateinit var audioController: WearAudioController
@@ -34,7 +35,8 @@ class WearApplication : Application() {
 
         val firestore = FirebaseFirestore.getInstance(FirebaseApp.getInstance(), WearConfig.FIRESTORE_DATABASE)
         podcastRepository = WearPodcastRepository(firestore)
-        playbackPositions = PlaybackPositionStore(this)
+        playbackPositions = SyncedPositionStore.get(this)
+        PositionSync.start(this)
         audioController = WearAudioController(this, playbackPositions, podcastRepository)
 
         // Alongside the manifest-declared WearAuthResultListenerService: manifest delivery to a
