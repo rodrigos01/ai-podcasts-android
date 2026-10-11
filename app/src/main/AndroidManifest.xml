@@ -20,6 +20,10 @@
         android:theme="@style/Theme.AIPodcasts"
         android:usesCleartextTraffic="true">
 
+        <meta-data
+            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="com.rodrigos01.aipodcasts.player.CastOptionsProvider" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

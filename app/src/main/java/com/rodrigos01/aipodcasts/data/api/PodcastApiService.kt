@@ -1,5 +1,6 @@
 package com.rodrigos01.aipodcasts.data.api
 
+import com.rodrigos01.aipodcasts.data.model.AudioUrlResponse
 import com.rodrigos01.aipodcasts.data.model.CreateDriveSourceRequest
 import com.rodrigos01.aipodcasts.data.model.CreateEpisodeRequest
 import com.rodrigos01.aipodcasts.data.model.CreateEpisodeResponse
@@ -168,6 +169,13 @@ interface PodcastApiService {
         @Path("podcastId") podcastId: String,
         @Path("episodeId") episodeId: String
     ): Response<Unit>
+
+    /** The stable, unauthenticated audio URL for the episode (what a Chromecast receiver fetches). */
+    @GET("podcasts/{podcastId}/episodes/{episodeId}/audio/url")
+    suspend fun getAudioUrl(
+        @Path("podcastId") podcastId: String,
+        @Path("episodeId") episodeId: String
+    ): AudioUrlResponse
 
     /** Clears the episode's cached audio (and its generated-audio settings); the script is kept. */
     @DELETE("podcasts/{podcastId}/episodes/{episodeId}/audio")

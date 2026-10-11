@@ -145,6 +145,10 @@ class EpisodeRepository(
         if (!res.isSuccessful) throw HttpException(res)
     }
 
+    /** The unauthenticated URL for the episode's audio, usable by the local player and cast devices alike. */
+    suspend fun getAudioUrl(podcastId: String, episodeId: String): String =
+        api.getAudioUrl(podcastId, episodeId).url
+
     suspend fun regenerateEpisode(podcastId: String, episodeId: String): Boolean {
         val res = api.regenerateEpisode(podcastId, episodeId)
         return res.isSuccessful

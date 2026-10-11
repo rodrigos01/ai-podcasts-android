@@ -2,6 +2,7 @@ package com.rodrigos01.aipodcasts.player
 
 import android.content.ComponentName
 import android.content.Context
+import android.os.Bundle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
@@ -46,6 +47,10 @@ class PodcastAudioController(
     private var streamStartOffsetMs: Long = 0L
     private var currentPodcastId: String? = null
     private var currentIdToken: String? = null
+
+    // Public (unauthenticated) audio URL per episode, from GET .../audio/url. It's stable, so one
+    // fetch serves the local player and any cast receiver, which can't send a token.
+    private val audioUrls = mutableMapOf<String, String>()
 
     // From the episode's Firestore doc (observeEpisodeAudioProgress): the backend's own word on
     // whether the audio is finished, and its exact length. This - not anything ExoPlayer infers
@@ -131,6 +136,16 @@ class PodcastAudioController(
                         // from it; never treat it as a finish.
                         _currentPositionMs.value = positionMs
                         resumeAfterEarlyEnd(positionMs)
+                    }
+                }
+            }
+
+            // The service re-opens the stream itself when playback moves between this device and
+            // a cast receiver; pick up the new stream's start offset from the item it loaded.
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                mediaItem?.mediaMetadata?.extras?.let { extras ->
+                    if (extras.containsKey(EXTRA_STREAM_OFFSET_MS)) {
+                        streamStartOffsetMs = extras.getLong(EXTRA_STREAM_OFFSET_MS)
                     }
                 }
             }
@@ -238,17 +253,9 @@ class PodcastAudioController(
 
         val savedPosMs = if (forceFromBeginning) 0L else playbackPositionRepository.getPositionMs(episode.id)
         val shouldResume = savedPosMs >= 3000L
-        val resumeSeconds = if (shouldResume) savedPosMs / 1000.0 else 0.0
 
-        streamStartOffsetMs = if (shouldResume) savedPosMs else 0L
-        _currentPositionMs.value = streamStartOffsetMs
-
-        val streamUrl = ApiClient.buildAudioStreamUrl(
-            podcastId = podcastId,
-            episodeId = episode.id,
-            idToken = null,
-            timeSeconds = if (resumeSeconds > 0) resumeSeconds else null
-        )
+        val startMs = if (shouldResume) savedPosMs else 0L
+        _currentPositionMs.value = startMs
 
         val metadata = MediaMetadata.Builder()
             .setTitle(episode.title)
@@ -256,14 +263,7 @@ class PodcastAudioController(
             .setDisplayTitle(episode.title)
             .build()
 
-        val mediaItem = MediaItem.Builder()
-            .setUri(streamUrl)
-            .setMediaMetadata(metadata)
-            .build()
-
-        player.setMediaItem(mediaItem)
-        player.prepare()
-        player.play()
+        openStream(startMs, metadata, play = true)
     }
 
     fun togglePlayPause() {
@@ -320,33 +320,47 @@ class PodcastAudioController(
         _currentPositionMs.value = positionMs
         playbackPositionRepository.savePositionMs(episode.id, positionMs)
 
+        openStream(positionMs, player.mediaMetadata, shouldPlay)
+    }
+
+    // Loads the current episode's stream starting at [positionMs] and (optionally) plays it.
+    // The URL is the backend's public audio URL, so the same item works whether the session is
+    // currently driving the local player or a cast receiver; the start offset is recorded in the
+    // item's extras so the service can re-open the stream at the right place when it switches.
+    private fun openStream(positionMs: Long, metadata: MediaMetadata, play: Boolean) {
+        val player = mediaController ?: return
+        val episode = _currentEpisode.value ?: return
+        val podcastId = currentPodcastId ?: return
+
         restartJob?.cancel()
         restartJob = scope.launch {
-            val freshToken = authRepository.getIdToken(forceRefresh = false)
-            if (!freshToken.isNullOrBlank()) {
-                currentIdToken = freshToken
-            }
-
-            val streamUrl = ApiClient.buildAudioStreamUrl(
-                podcastId = podcastId,
-                episodeId = episode.id,
-                idToken = null,
-                timeSeconds = positionMs / 1000.0
-            )
+            val baseUrl = resolveAudioUrl(podcastId, episode.id)
+            val extras = Bundle().apply { putLong(EXTRA_STREAM_OFFSET_MS, positionMs) }
             val mediaItem = MediaItem.Builder()
-                .setUri(streamUrl)
-                .setMediaMetadata(player.mediaMetadata)
+                .setUri(ApiClient.withStartTime(baseUrl, positionMs / 1000.0))
+                .setMimeType(AUDIO_MIME_TYPE)
+                .setMediaMetadata(metadata.buildUpon().setExtras(extras).build())
                 .build()
 
             // Switch the offset and the media item together: the progress loop adds the offset
             // to the player's position, so changing the offset before the old item is replaced
-            // (e.g. while the token above is fetched) would briefly report - and persist - a
+            // (e.g. while the URL above is fetched) would briefly report - and persist - a
             // wrong position.
             streamStartOffsetMs = positionMs
             player.setMediaItem(mediaItem)
             player.prepare()
-            if (shouldPlay) player.play()
+            if (play) player.play()
         }
+    }
+
+    // The episode's public audio URL, fetched once per episode. If the lookup fails, fall back to
+    // the authenticated stream URL (the token resolver signs it), which plays locally but can't
+    // be cast, and don't cache it so the next open tries again.
+    private suspend fun resolveAudioUrl(podcastId: String, episodeId: String): String {
+        audioUrls[episodeId]?.let { return it }
+        return runCatching { episodeRepository.getAudioUrl(podcastId, episodeId) }
+            .onSuccess { audioUrls[episodeId] = it }
+            .getOrElse { ApiClient.buildAudioStreamUrl(podcastId, episodeId) }
     }
 
     fun seekRelative(offsetSeconds: Int) {
@@ -371,6 +385,12 @@ class PodcastAudioController(
     }
 
     companion object {
+        /** MediaItem extras key: where in the episode (ms) the item's stream starts. */
+        const val EXTRA_STREAM_OFFSET_MS = "streamStartOffsetMs"
+
+        // What the backend serves (raw ADTS); CastPlayer requires a MIME type on the item.
+        const val AUDIO_MIME_TYPE = "audio/aac"
+
         const val MAX_RESUME_ATTEMPTS = 6
         const val RESUME_DELAY_MS = 2_000L
         // Playback this far past where an early-end resume began counts as "it worked".

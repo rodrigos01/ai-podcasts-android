@@ -1,10 +1,10 @@
 package com.rodrigos01.aipodcasts
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.media3.common.util.UnstableApi
@@ -14,7 +14,8 @@ import com.rodrigos01.aipodcasts.ui.navigation.Screen
 import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 
 @UnstableApi
-class MainActivity : ComponentActivity() {
+// FragmentActivity (a ComponentActivity) because the cast button's device dialog is a fragment.
+class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
