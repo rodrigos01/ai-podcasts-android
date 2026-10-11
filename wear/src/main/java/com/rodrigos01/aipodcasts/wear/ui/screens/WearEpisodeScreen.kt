@@ -25,7 +25,7 @@ import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
-import com.rodrigos01.aipodcasts.wear.data.PlaybackPositionStore
+import com.rodrigos01.aipodcasts.sync.SyncedPositionStore
 import com.rodrigos01.aipodcasts.wear.data.WearEpisode
 import com.rodrigos01.aipodcasts.wear.data.WearPodcastRepository
 import com.rodrigos01.aipodcasts.wear.player.WearAudioController
@@ -43,7 +43,7 @@ fun WearEpisodeScreen(
     episodeId: String,
     podcastTitle: String,
     repository: WearPodcastRepository,
-    positions: PlaybackPositionStore,
+    positions: SyncedPositionStore,
     audioController: WearAudioController,
     onStartPlayback: () -> Unit,
     modifier: Modifier = Modifier
@@ -57,6 +57,12 @@ fun WearEpisodeScreen(
     var savedPositionMs by remember { mutableLongStateOf(positions.getPositionMs(episodeId)) }
     LaunchedEffect(episodeId, activeEpisode?.id, isPlaying) {
         savedPositionMs = positions.getPositionMs(episodeId)
+    }
+    // Progress made on the phone while this screen is open.
+    LaunchedEffect(episodeId) {
+        positions.remoteUpdates.collect { updated ->
+            if (updated == episodeId) savedPositionMs = positions.getPositionMs(episodeId)
+        }
     }
 
     when (val current = state) {
@@ -93,7 +99,7 @@ fun WearEpisodeScreen(
                         }
                     }
 
-                    if (PlaybackPositionStore.canResume(positionMs)) {
+                    if (SyncedPositionStore.canResume(positionMs)) {
                         item {
                             Button(
                                 onClick = {

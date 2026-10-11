@@ -81,6 +81,10 @@ fun EpisodeDetailScreen(
 
     LaunchedEffect(podcastId, episodeId) {
         viewModel.refreshSavedPosition()
+        // Progress made on the watch while this screen is open.
+        AIPodcastsApplication.instance.playbackPositionRepository.remoteUpdates.collect { updated ->
+            if (updated == episodeId) viewModel.refreshSavedPosition()
+        }
     }
 
     EpisodeDetailScreen(

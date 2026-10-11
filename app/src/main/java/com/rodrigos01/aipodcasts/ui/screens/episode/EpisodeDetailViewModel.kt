@@ -90,8 +90,12 @@ class EpisodeDetailViewModel(
         val ep = uiState.value.episode ?: return
         val podcast = uiState.value.podcast
 
-        // If this episode is already active in player and we're not forcing restart, simply toggle play
-        if (!forceFromBeginning && audioController.currentEpisode.value?.id == ep.id) {
+        // If this episode is already active in player and we're not forcing restart, simply toggle
+        // play/pause - unless the saved position has moved since (progress made on the watch), in
+        // which case reload it from there.
+        val savedMs = playbackPositionRepo.getPositionMs(ep.id)
+        val loadedAtSavedPosition = kotlin.math.abs(savedMs - audioController.currentPositionMs.value) < 5_000L
+        if (!forceFromBeginning && audioController.currentEpisode.value?.id == ep.id && loadedAtSavedPosition) {
             audioController.togglePlayPause()
             return
         }

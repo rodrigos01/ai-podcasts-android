@@ -1,7 +1,7 @@
 package com.rodrigos01.aipodcasts.wear
 
 import com.rodrigos01.aipodcasts.wear.auth.PairTokenMessage
-import com.rodrigos01.aipodcasts.wear.data.PlaybackPositionStore
+import com.rodrigos01.aipodcasts.sync.SyncedPositionStore
 import com.rodrigos01.aipodcasts.wear.data.WearConfig
 import com.rodrigos01.aipodcasts.wear.data.WearEpisode
 import com.rodrigos01.aipodcasts.wear.player.StreamLogic
@@ -38,9 +38,9 @@ class WearLogicTest {
 
     @Test
     fun canResume_needsAtLeastThreeSeconds() {
-        assertFalse(PlaybackPositionStore.canResume(0))
-        assertFalse(PlaybackPositionStore.canResume(2_999))
-        assertTrue(PlaybackPositionStore.canResume(3_000))
+        assertFalse(SyncedPositionStore.canResume(0))
+        assertFalse(SyncedPositionStore.canResume(2_999))
+        assertTrue(SyncedPositionStore.canResume(3_000))
     }
 
     @Test
