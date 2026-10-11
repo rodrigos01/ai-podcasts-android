@@ -30,7 +30,7 @@ class SyncedPositionStore private constructor(context: Context) {
         ledger.applyRemote(episodeId, positionMs, updatedAt)
 
     private class PrefsStorage(private val prefs: SharedPreferences) : LongStorage {
-        override fun get(key: String): Long? = if (prefs.contains(key)) prefs.getLong(key, 0L) else null
+        override fun get(key: String): Long? = prefs.getLong(key, MISSING).takeIf { it != MISSING }
         override fun put(key: String, value: Long) {
             prefs.edit().putLong(key, value).apply()
         }
@@ -40,6 +40,8 @@ class SyncedPositionStore private constructor(context: Context) {
     }
 
     companion object {
+        private const val MISSING = Long.MIN_VALUE
+
         // Same file the phone app has always used, so existing saved positions carry over.
         private const val PREFS_NAME = "ai_podcasts_playback_positions"
 
