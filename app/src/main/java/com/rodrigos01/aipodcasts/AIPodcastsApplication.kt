@@ -2,6 +2,7 @@ package com.rodrigos01.aipodcasts
 
 import android.app.Application
 import androidx.media3.common.util.UnstableApi
+import com.google.android.gms.wearable.Wearable
 import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.rodrigos01.aipodcasts.data.firestore.PodcastFirestoreDataSource
@@ -12,6 +13,7 @@ import com.rodrigos01.aipodcasts.data.repository.PodcastRepository
 import com.rodrigos01.aipodcasts.data.repository.SettingsRepository
 import com.rodrigos01.aipodcasts.data.repository.SourceRepository
 import com.rodrigos01.aipodcasts.player.PodcastAudioController
+import com.rodrigos01.aipodcasts.watch.WatchAuthRelayHandler
 
 @UnstableApi
 class AIPodcastsApplication : Application() {
@@ -58,6 +60,10 @@ class AIPodcastsApplication : Application() {
             episodeRepository = episodeRepository,
             authRepository = authRepository
         )
+
+        // Alongside the manifest-declared WatchAuthRelayService: manifest delivery to a
+        // non-running app is best-effort, so also listen live while this process is alive.
+        Wearable.getMessageClient(this).addListener { WatchAuthRelayHandler.handle(this, it) }
     }
 
     companion object {

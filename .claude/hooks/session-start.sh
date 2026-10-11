@@ -108,3 +108,8 @@ if [ ! -f "$GS_JSON" ] && [ -f "$REPO_DIR/app/build.gradle.kts" ]; then
 }
 EOF
 fi
+
+# :wear shares :app's applicationId and Firebase app, so it uses the same google-services.json.
+if [ -f "$GS_JSON" ] && [ -d "$REPO_DIR/wear" ] && [ ! -f "$REPO_DIR/wear/google-services.json" ]; then
+  cp "$GS_JSON" "$REPO_DIR/wear/google-services.json"
+fi
