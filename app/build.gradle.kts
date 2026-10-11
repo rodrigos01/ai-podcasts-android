@@ -79,7 +79,7 @@ android {
             }
         }
         debug {
-            applicationIdSuffix = ""
+            applicationIdSuffix = ".debug"
         }
     }
 
