@@ -17,7 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -54,6 +53,7 @@ import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.R
 import com.rodrigos01.aipodcasts.data.model.Episode
 import com.rodrigos01.aipodcasts.data.model.EpisodeGuest
+import com.rodrigos01.aipodcasts.ui.components.CastButton
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
 import com.rodrigos01.aipodcasts.ui.components.LocalContentPadding
 import com.rodrigos01.aipodcasts.ui.components.StatusBadge
@@ -83,23 +83,14 @@ fun EpisodeDetailScreen(
         viewModel.refreshSavedPosition()
     }
 
-    LaunchedEffect(uiState.isDeleted) {
-        if (uiState.isDeleted) {
-            onNavigateBack()
-        }
-    }
-
     EpisodeDetailScreen(
         uiState = uiState,
         activeEpisodeId = activeEpisode?.id,
         activePositionMs = activePositionMs,
         isPlaying = isPlaying,
         onNavigateBack = onNavigateBack,
-        onDeleteClick = { viewModel.promptDelete() },
         onEditClick = onNavigateToEdit,
         onPlayAudio = { forceRestart -> viewModel.playAudio(forceRestart) },
-        onConfirmDelete = { viewModel.confirmDelete() },
-        onDismissDelete = { viewModel.dismissDeleteConfirm() },
         onErrorShown = { viewModel.clearActionError() })
 }
 
@@ -111,11 +102,8 @@ private fun EpisodeDetailScreen(
     activePositionMs: Long,
     isPlaying: Boolean,
     onNavigateBack: () -> Unit,
-    onDeleteClick: () -> Unit,
     onEditClick: () -> Unit,
     onPlayAudio: (Boolean) -> Unit,
-    onConfirmDelete: () -> Unit,
-    onDismissDelete: () -> Unit,
     onErrorShown: () -> Unit
 ) {
     val isCurrentActiveEpisode = activeEpisodeId == uiState.episode?.id
@@ -140,16 +128,11 @@ private fun EpisodeDetailScreen(
             onNavigateBack = onNavigateBack,
             actions = {
                 if (uiState.episode != null) {
+                    CastButton()
                     IconButton(onClick = onEditClick) {
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = stringResource(R.string.action_edit)
-                        )
-                    }
-                    IconButton(onClick = onDeleteClick) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = stringResource(R.string.action_delete)
                         )
                     }
                 }
@@ -374,33 +357,6 @@ private fun EpisodeDetailScreen(
                 }
             }
         }
-
-        if (uiState.showDeleteConfirm) {
-            val title = uiState.episode?.title ?: ""
-            AlertDialog(
-                onDismissRequest = { if (!uiState.isDeleting) onDismissDelete() },
-                        title = { Text(stringResource(R.string.episode_delete_confirm_title)) },
-                        text = { Text(stringResource(R.string.episode_delete_confirm, title)) },
-                        confirmButton = {
-                            TextButton(
-                                onClick = onConfirmDelete, enabled = !uiState.isDeleting
-                            ) {
-                                Text(
-                                    stringResource(R.string.action_delete),
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(
-                                onClick = onDismissDelete, enabled = !uiState.isDeleting
-                            ) {
-                                Text(stringResource(R.string.action_cancel))
-                            }
-                        },
-                        shape = ExpressiveShapes.large
-            )
-        }
     }
     }
 }
@@ -431,11 +387,8 @@ fun EpisodeDetailReadyPreview() {
             activePositionMs = 0L,
             isPlaying = false,
             onNavigateBack = {},
-            onDeleteClick = {},
             onEditClick = {},
             onPlayAudio = {},
-            onConfirmDelete = {},
-            onDismissDelete = {},
             onErrorShown = {})
     }
 }
@@ -464,11 +417,8 @@ fun EpisodeDetailGeneratingPreview() {
             activePositionMs = 0L,
             isPlaying = false,
             onNavigateBack = {},
-            onDeleteClick = {},
             onEditClick = {},
             onPlayAudio = {},
-            onConfirmDelete = {},
-            onDismissDelete = {},
             onErrorShown = {})
     }
 }
