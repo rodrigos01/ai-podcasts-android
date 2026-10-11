@@ -2,6 +2,7 @@ package com.rodrigos01.aipodcasts.wear
 
 import com.rodrigos01.aipodcasts.wear.auth.PairTokenMessage
 import com.rodrigos01.aipodcasts.sync.SyncedPositionStore
+import com.rodrigos01.aipodcasts.wear.data.AudioUrlClient
 import com.rodrigos01.aipodcasts.wear.data.WearConfig
 import com.rodrigos01.aipodcasts.wear.data.WearEpisode
 import com.rodrigos01.aipodcasts.wear.player.StreamLogic
@@ -52,11 +53,28 @@ class WearLogicTest {
     }
 
     @Test
-    fun streamUrl_addsOffsetOnlyWhenResuming() {
-        val base = WearConfig.BASE_URL.trimEnd('/') + "/podcasts/p1/episodes/e1/audio/stream"
-        assertEquals(base, WearConfig.buildAudioStreamUrl("p1", "e1"))
-        assertEquals(base, WearConfig.buildAudioStreamUrl("p1", "e1", 0.0))
-        assertEquals("$base?t=12.5", WearConfig.buildAudioStreamUrl("p1", "e1", 12.5))
+    fun withStartTime_setsReplacesAndRemovesTheOffset() {
+        val url = "https://storage.example.com/ep.aac"
+        assertEquals(url, WearConfig.withStartTime(url, null))
+        assertEquals(url, WearConfig.withStartTime(url, 0.0))
+        assertEquals("$url?t=12.5", WearConfig.withStartTime(url, 12.5))
+        assertEquals("$url?t=30.0", WearConfig.withStartTime("$url?t=12.5", 30.0))
+        assertEquals(url, WearConfig.withStartTime("$url?t=12.5", null))
+        assertEquals("$url?sig=abc&t=7.0#frag", WearConfig.withStartTime("$url?sig=abc#frag", 7.0))
+    }
+
+    @Test
+    fun audioUrlEndpoint_isThePodcastsAudioUrlRoute() {
+        assertEquals(
+            WearConfig.BASE_URL.trimEnd('/') + "/podcasts/p1/episodes/e1/audio/url",
+            WearConfig.audioUrlEndpoint("p1", "e1")
+        )
+    }
+
+    @Test
+    fun parseUrl_readsUrlFromAudioUrlResponse() {
+        assertEquals("https://x/y.aac", AudioUrlClient.parseUrl("""{"url":"https://x/y.aac"}"""))
+        assertTrue(runCatching { AudioUrlClient.parseUrl("{}") }.isFailure)
     }
 
     @Test

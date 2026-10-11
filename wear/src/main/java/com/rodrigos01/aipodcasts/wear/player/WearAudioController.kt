@@ -11,6 +11,7 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.rodrigos01.aipodcasts.sync.SyncedPositionStore
+import com.rodrigos01.aipodcasts.wear.data.AudioUrlClient
 import com.rodrigos01.aipodcasts.wear.data.WearConfig
 import com.rodrigos01.aipodcasts.wear.data.WearEpisode
 import com.rodrigos01.aipodcasts.wear.data.WearPodcastRepository
@@ -36,6 +37,7 @@ class WearAudioController(
     context: Context,
     private val positions: SyncedPositionStore,
     private val repository: WearPodcastRepository,
+    private val audioUrlClient: AudioUrlClient,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main)
 ) {
 
@@ -46,6 +48,8 @@ class WearAudioController(
     private var progressJob: Job? = null
     private var episodeProgressJob: Job? = null
     private var resumeJob: Job? = null
+    private var openJob: Job? = null
+    private val audioUrls = mutableMapOf<String, String>()
     private var resumeAttempts = 0
     private var resumeBaselineMs = 0L
     private var streamStartOffsetMs = 0L
@@ -72,6 +76,10 @@ class WearAudioController(
     /** The backend's exact duration once the audio is complete; 0 while it is still generating. */
     private val _durationMs = MutableStateFlow(0L)
     val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
+
+    /** Set when an episode couldn't be opened (e.g. no network); cleared on the next attempt. */
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
 
     private val _generatedAudioSeconds = MutableStateFlow<Double?>(null)
 
@@ -208,9 +216,7 @@ class WearAudioController(
         streamStartOffsetMs = startMs
         _positionMs.value = startMs
 
-        player.setMediaItem(buildMediaItem(podcastId, podcastTitle, episode.id, episode.title, startMs))
-        player.prepare()
-        player.play()
+        openStream(startMs, play = true)
     }
 
     fun togglePlayPause() {
@@ -261,37 +267,54 @@ class WearAudioController(
     private fun restartAtPositionMs(positionMs: Long, forcePlay: Boolean? = null) {
         val player = mediaController ?: return
         val episode = _currentEpisode.value ?: return
-        val podcastId = currentPodcastId ?: return
         val shouldPlay = forcePlay ?: player.isPlaying
 
         _positionMs.value = positionMs
         positions.savePositionMs(episode.id, positionMs, checkpoint = true)
 
-        // Switch the offset and the media item together: the progress loop adds the offset to the
-        // player's position, so changing one without the other would briefly report (and persist)
-        // a wrong position.
-        streamStartOffsetMs = positionMs
-        player.setMediaItem(buildMediaItem(podcastId, _podcastTitle.value, episode.id, episode.title, positionMs))
-        player.prepare()
-        if (shouldPlay) player.play()
+        openStream(positionMs, shouldPlay)
     }
 
-    private fun buildMediaItem(
-        podcastId: String,
-        podcastTitle: String,
-        episodeId: String,
-        episodeTitle: String,
-        startMs: Long
-    ): MediaItem = MediaItem.Builder()
-        .setUri(WearConfig.buildAudioStreamUrl(podcastId, episodeId, if (startMs > 0) startMs / 1000.0 else null))
-        .setMediaMetadata(
-            MediaMetadata.Builder()
-                .setTitle(episodeTitle)
-                .setDisplayTitle(episodeTitle)
-                .setArtist(podcastTitle)
-                .build()
-        )
-        .build()
+    // Loads the current episode's public audio URL (cached per episode) and starts it at
+    // [positionMs]. The start offset and the media item are switched together: the progress loop
+    // adds the offset to the player's position, so changing one without the other (e.g. while the
+    // URL is fetched) would briefly report - and persist - a wrong position.
+    private fun openStream(positionMs: Long, play: Boolean) {
+        val episode = _currentEpisode.value ?: return
+        val podcastId = currentPodcastId ?: return
+        val podcastTitle = _podcastTitle.value
+
+        _error.value = null
+        openJob?.cancel()
+        openJob = scope.launch {
+            val baseUrl = audioUrls[episode.id]
+                ?: audioUrlClient.getAudioUrl(podcastId, episode.id)
+                    .onSuccess { audioUrls[episode.id] = it }
+                    .getOrElse {
+                        _error.value = it.localizedMessage ?: "Couldn't load episode"
+                        return@launch
+                    }
+            val player = mediaController ?: return@launch
+
+            streamStartOffsetMs = positionMs
+            player.setMediaItem(buildMediaItem(baseUrl, episode.title, podcastTitle, positionMs))
+            player.prepare()
+            if (play) player.play()
+        }
+    }
+
+    private fun buildMediaItem(baseUrl: String, episodeTitle: String, podcastTitle: String, startMs: Long): MediaItem =
+        MediaItem.Builder()
+            .setUri(WearConfig.withStartTime(baseUrl, if (startMs > 0) startMs / 1000.0 else null))
+            .setMimeType(WearConfig.AUDIO_MIME_TYPE)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(episodeTitle)
+                    .setDisplayTitle(episodeTitle)
+                    .setArtist(podcastTitle)
+                    .build()
+            )
+            .build()
 
     private companion object {
         const val PROGRESS_TICK_MS = 500L
