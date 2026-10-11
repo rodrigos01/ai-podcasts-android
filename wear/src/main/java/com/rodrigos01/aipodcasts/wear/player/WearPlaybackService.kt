@@ -6,7 +6,6 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -19,7 +18,7 @@ import com.rodrigos01.aipodcasts.wear.WearMainActivity
  * The watch's own playback service (separate from the phone's), so playback works standalone over
  * the watch's Wi-Fi/LTE/Bluetooth. Same tuning as the phone's `PodcastPlaybackService`: the
  * backend can take a while per chunk while an episode is still generating, so stalled reads get
- * a long timeout and ExoPlayer retries dropped loads (re-resolving a fresh token each time).
+ * a long timeout and ExoPlayer retries dropped loads. The audio URL is public, so there is no auth to refresh.
  */
 @UnstableApi
 class WearPlaybackService : MediaSessionService() {
@@ -35,7 +34,7 @@ class WearPlaybackService : MediaSessionService() {
             .setAllowCrossProtocolRedirects(true)
 
         val mediaSourceFactory = DefaultMediaSourceFactory(this)
-            .setDataSourceFactory(ResolvingDataSource.Factory(httpDataSourceFactory, AudioStreamTokenResolver()))
+            .setDataSourceFactory(httpDataSourceFactory)
             .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(MIN_LOAD_RETRIES))
 
         val loadControl = DefaultLoadControl.Builder()

@@ -40,6 +40,7 @@ fun WearPlayerScreen(audioController: WearAudioController, modifier: Modifier = 
     val isBuffering by audioController.isBuffering.collectAsState()
     val positionMs by audioController.positionMs.collectAsState()
     val durationMs by audioController.durationMs.collectAsState()
+    val error by audioController.error.collectAsState()
 
     WearPlayerScreen(
         episodeTitle = episode?.title.orEmpty(),
@@ -48,6 +49,7 @@ fun WearPlayerScreen(audioController: WearAudioController, modifier: Modifier = 
         isBuffering = isBuffering,
         positionMs = positionMs,
         durationMs = durationMs,
+        error = error,
         onPlayPauseClick = audioController::togglePlayPause,
         onSkipBackClick = { audioController.seekRelative(-SKIP_SECONDS) },
         onSkipForwardClick = { audioController.seekRelative(SKIP_SECONDS) },
@@ -63,6 +65,7 @@ fun WearPlayerScreen(
     isBuffering: Boolean,
     positionMs: Long,
     durationMs: Long,
+    error: String?,
     onPlayPauseClick: () -> Unit,
     onSkipBackClick: () -> Unit,
     onSkipForwardClick: () -> Unit,
@@ -109,6 +112,7 @@ fun WearPlayerScreen(
 
         Text(
             when {
+                error != null -> error
                 isBuffering -> "Buffering…"
                 durationMs > 0 -> "${formatTimeMs(positionMs)} / ${formatTimeMs(durationMs)}"
                 else -> formatTimeMs(positionMs)
@@ -129,6 +133,7 @@ private fun WearPlayerScreenPreview() {
             isBuffering = false,
             positionMs = 131_000,
             durationMs = 228_000,
+            error = null,
             onPlayPauseClick = {},
             onSkipBackClick = {},
             onSkipForwardClick = {}

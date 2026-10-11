@@ -6,6 +6,7 @@ import com.google.android.gms.wearable.Wearable
 import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.rodrigos01.aipodcasts.wear.auth.WearAuthResultHandler
+import com.rodrigos01.aipodcasts.wear.data.AudioUrlClient
 import com.rodrigos01.aipodcasts.wear.data.WearConfig
 import com.rodrigos01.aipodcasts.wear.data.WearPodcastRepository
 import com.rodrigos01.aipodcasts.wear.player.WearAudioController
@@ -37,7 +38,7 @@ class WearApplication : Application() {
         podcastRepository = WearPodcastRepository(firestore)
         playbackPositions = SyncedPositionStore.get(this)
         PositionSync.start(this)
-        audioController = WearAudioController(this, playbackPositions, podcastRepository)
+        audioController = WearAudioController(this, playbackPositions, podcastRepository, AudioUrlClient())
 
         // Alongside the manifest-declared WearAuthResultListenerService: manifest delivery to a
         // non-running app is best-effort, so also listen live while this process is alive.
