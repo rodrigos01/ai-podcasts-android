@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Chromecast receiver app id. CC1AD845 is Google's Default Media Receiver (shown on TVs as
+         "Default Media Receiver"). To brand the TV screen, register a Styled Media Receiver in the
+         Google Cast SDK Developer Console (https://cast.google.com/publish), set its name, colors
+         and logo there, and put its app id here. -->
+    <string name="cast_receiver_app_id" translatable="false">CC1AD845</string>
+</resources>

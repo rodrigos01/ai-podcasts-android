@@ -165,7 +165,14 @@ fun PodcastNavGraph(
                 EpisodeEditScreen(
                     podcastId = podcastId,
                     episodeId = episodeId,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    // The episode is gone, so skip its detail screen too and land on the podcast.
+                    onDeleted = {
+                        if (!navController.popBackStack(Screen.PodcastDetail.route, inclusive = false)) {
+                            navController.popBackStack()
+                            navController.popBackStack()
+                        }
+                    }
                 )
             }
 

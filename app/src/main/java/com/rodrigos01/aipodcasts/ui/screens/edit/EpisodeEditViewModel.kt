@@ -34,6 +34,10 @@ data class EpisodeEditUiState(
     /** Shown after a save (or on tapping Regenerate): confirm redoing the episode. */
     val showRegenerateConfirm: Boolean = false,
     val regenerateAfterSave: Boolean = false,
+    val showDeleteConfirm: Boolean = false,
+    val isDeleting: Boolean = false,
+    /** Set once the episode is deleted; the screen then leaves the (now gone) episode behind. */
+    val isDeleted: Boolean = false,
     val validationError: Boolean = false,
     /** True once the screen has nothing left to do and should navigate back. */
     val isDone: Boolean = false,
@@ -183,6 +187,29 @@ class EpisodeEditViewModel(
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(isClearingAudio = false, errorMessage = e.userMessage() ?: "Failed to clear the audio")
+                }
+            }
+        }
+    }
+
+    fun promptDelete() = _uiState.update { it.copy(showDeleteConfirm = true) }
+
+    fun dismissDelete() = _uiState.update { it.copy(showDeleteConfirm = false) }
+
+    fun confirmDelete() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDeleting = true, errorMessage = null) }
+            try {
+                if (episodeRepo.deleteEpisode(podcastId, episodeId)) {
+                    _uiState.update { it.copy(isDeleting = false, showDeleteConfirm = false, isDeleted = true) }
+                } else {
+                    _uiState.update {
+                        it.copy(isDeleting = false, showDeleteConfirm = false, errorMessage = "Failed to delete episode")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isDeleting = false, showDeleteConfirm = false, errorMessage = e.userMessage() ?: "Failed to delete episode")
                 }
             }
         }

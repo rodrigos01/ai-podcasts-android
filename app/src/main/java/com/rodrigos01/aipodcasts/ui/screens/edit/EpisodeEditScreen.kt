@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Refresh
@@ -53,6 +54,7 @@ fun EpisodeEditScreen(
     podcastId: String,
     episodeId: String,
     onNavigateBack: () -> Unit,
+    onDeleted: () -> Unit = onNavigateBack,
     viewModel: EpisodeEditViewModel = viewModel(factory = EpisodeEditViewModel.provideFactory(podcastId, episodeId))
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -61,6 +63,9 @@ fun EpisodeEditScreen(
 
     LaunchedEffect(state.isDone) {
         if (state.isDone) onNavigateBack()
+    }
+    LaunchedEffect(state.isDeleted) {
+        if (state.isDeleted) onDeleted()
     }
     LaunchedEffect(state.infoMessage) {
         state.infoMessage?.let {
@@ -75,14 +80,24 @@ fun EpisodeEditScreen(
         }
     }
 
-    val editable = !state.isLoading && !state.isSaving && !state.isRegenerating && !state.isClearingAudio
+    val editable = !state.isLoading && !state.isSaving && !state.isRegenerating && !state.isClearingAudio && !state.isDeleting
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             ExpressiveTopAppBar(
                 title = stringResource(R.string.episode_edit_title),
                 canNavigateBack = true,
-                onNavigateBack = onNavigateBack
+                onNavigateBack = onNavigateBack,
+                actions = {
+                    if (!state.isLoading) {
+                        IconButton(onClick = viewModel::promptDelete, enabled = editable) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = stringResource(R.string.action_delete)
+                            )
+                        }
+                    }
+                }
             )
             if (state.isLoading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
@@ -245,6 +260,25 @@ fun EpisodeEditScreen(
             },
             dismissButton = {
                 TextButton(onClick = viewModel::dismissClearAudio) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+            shape = ExpressiveShapes.large
+        )
+    }
+
+    if (state.showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { if (!state.isDeleting) viewModel.dismissDelete() },
+            title = { Text(stringResource(R.string.episode_delete_confirm_title)) },
+            text = { Text(stringResource(R.string.episode_delete_confirm, state.title)) },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmDelete, enabled = !state.isDeleting) {
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissDelete, enabled = !state.isDeleting) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },

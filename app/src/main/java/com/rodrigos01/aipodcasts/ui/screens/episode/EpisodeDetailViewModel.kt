@@ -29,16 +29,10 @@ data class EpisodeDetailUiState(
     val progress: EpisodeProgress? = null,
     val isPolling: Boolean = false,
     val errorMessage: String? = null,
-    val savedPositionMs: Long = 0L,
-    val showDeleteConfirm: Boolean = false,
-    val isDeleting: Boolean = false,
-    val isDeleted: Boolean = false
+    val savedPositionMs: Long = 0L
 )
 
 private data class EpisodeDetailInternalFlags(
-    val showDeleteConfirm: Boolean = false,
-    val isDeleting: Boolean = false,
-    val isDeleted: Boolean = false,
     val errorMessage: String? = null,
     val savedPositionMs: Long = 0L
 )
@@ -78,10 +72,7 @@ class EpisodeDetailViewModel(
             progress = episode?.progress,
             isPolling = false,
             errorMessage = flags.errorMessage ?: episode?.error,
-            savedPositionMs = flags.savedPositionMs,
-            showDeleteConfirm = flags.showDeleteConfirm,
-            isDeleting = flags.isDeleting,
-            isDeleted = flags.isDeleted,
+            savedPositionMs = flags.savedPositionMs
         )
     }.stateIn(
         scope = viewModelScope,
@@ -122,34 +113,6 @@ class EpisodeDetailViewModel(
 
     fun clearActionError() {
         _flags.value = _flags.value.copy(errorMessage = null)
-    }
-
-    fun promptDelete() {
-        _flags.value = _flags.value.copy(showDeleteConfirm = true)
-    }
-
-    fun dismissDeleteConfirm() {
-        _flags.value = _flags.value.copy(showDeleteConfirm = false)
-    }
-
-    fun confirmDelete(pId: String = podcastId, epId: String = episodeId) {
-        viewModelScope.launch {
-            _flags.value = _flags.value.copy(isDeleting = true)
-            try {
-                episodeRepo.deleteEpisode(pId, epId)
-                _flags.value = _flags.value.copy(
-                    isDeleting = false,
-                    showDeleteConfirm = false,
-                    isDeleted = true
-                )
-            } catch (e: Exception) {
-                _flags.value = _flags.value.copy(
-                    isDeleting = false,
-                    showDeleteConfirm = false,
-                    errorMessage = e.userMessage()
-                )
-            }
-        }
     }
 
     companion object {
