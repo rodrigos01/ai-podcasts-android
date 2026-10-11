@@ -279,3 +279,9 @@ data class Episode(
 data class HealthResponse(
     @Json(name = "status") val status: String = "ok"
 )
+
+/** Response of `GET /podcasts/{id}/episodes/{id}/audio/url`: the credential-free URL a cast receiver can fetch. */
+@JsonClass(generateAdapter = true)
+data class AudioUrlResponse(
+    @Json(name = "url") val url: String
+)

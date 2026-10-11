@@ -86,6 +86,26 @@ object ApiClient {
         "${currentBaseUrl.trimEnd('/')}/voices/$voiceId/preview"
 
     /**
+     * Returns [url] with its resume offset (`t=<seconds>`) set to [timeSeconds], replacing any
+     * existing one; null or non-positive removes it. Used on the public cast URL, which carries
+     * no other query parameters.
+     */
+    fun withStartTime(url: String, timeSeconds: Double?): String {
+        val fragmentAt = url.indexOf('#').let { if (it < 0) url.length else it }
+        val fragment = url.substring(fragmentAt)
+        val beforeFragment = url.substring(0, fragmentAt)
+        val path = beforeFragment.substringBefore('?')
+        val params = beforeFragment.substringAfter('?', "")
+            .split('&')
+            .filter { it.isNotEmpty() && it != "t" && !it.startsWith("t=") }
+            .toMutableList()
+        if (timeSeconds != null && timeSeconds > 0) {
+            params.add("t=%.1f".format(java.util.Locale.US, timeSeconds))
+        }
+        return path + (if (params.isEmpty()) "" else "?" + params.joinToString("&")) + fragment
+    }
+
+    /**
      * Builds the direct streaming URL for Media3 / ExoPlayer playback
      * Includes Firebase ID token and optional resume timestamp in seconds (?t=)
      */

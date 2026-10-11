@@ -3,6 +3,12 @@ package com.rodrigos01.aipodcasts.player
 import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.cast.CastPlayer
+import androidx.media3.cast.SessionAvailabilityListener
+import com.google.android.gms.cast.framework.CastContext
+import com.rodrigos01.aipodcasts.data.api.ApiClient
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -20,6 +26,8 @@ import com.rodrigos01.aipodcasts.data.repository.AuthRepository
 class PodcastPlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
+    private var exoPlayer: ExoPlayer? = null
+    private var castPlayer: CastPlayer? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -69,7 +77,58 @@ class PodcastPlaybackService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .build()
 
+        exoPlayer = player
         mediaSession = MediaSession.Builder(this, player).build()
+        setUpCast(player)
+    }
+
+    // The session drives whichever player is current: the local ExoPlayer, or a CastPlayer while
+    // a Chromecast session is connected. The MediaController in the app doesn't know the
+    // difference. Cast is optional (no Play Services, no cast devices), so failing to set it up
+    // just leaves local playback.
+    private fun setUpCast(local: ExoPlayer) {
+        val castContext = runCatching { CastContext.getSharedInstance(this) }.getOrNull() ?: return
+        val cast = CastPlayer(castContext)
+        castPlayer = cast
+        cast.setSessionAvailabilityListener(object : SessionAvailabilityListener {
+            override fun onCastSessionAvailable() = switchPlayer(from = local, to = cast)
+            override fun onCastSessionUnavailable() = switchPlayer(from = cast, to = local)
+        })
+        if (cast.isCastSessionAvailable) switchPlayer(from = local, to = cast)
+    }
+
+    // Hands the current item over to [to] at the same episode position and stops [from]. The
+    // item's stream starts at a `?t=` offset that the controller records in its extras, so the
+    // new player's stream is re-opened at the absolute position rather than at 0.
+    private fun switchPlayer(from: Player, to: Player) {
+        val session = mediaSession ?: return
+        if (session.player === to) return
+
+        val item = from.currentMediaItem
+        val offsetMs = item?.mediaMetadata?.extras?.getLong(PodcastAudioController.EXTRA_STREAM_OFFSET_MS) ?: 0L
+        val positionMs = offsetMs + from.currentPosition.coerceAtLeast(0L)
+        val playWhenReady = from.playWhenReady
+
+        from.stop()
+        from.clearMediaItems()
+        session.player = to
+
+        if (item != null) {
+            to.setMediaItem(item.withStreamStart(positionMs))
+            to.prepare()
+            to.playWhenReady = playWhenReady
+        }
+    }
+
+    private fun MediaItem.withStreamStart(positionMs: Long): MediaItem {
+        val url = localConfiguration?.uri?.toString() ?: return this
+        val extras = android.os.Bundle(mediaMetadata.extras ?: android.os.Bundle.EMPTY).apply {
+            putLong(PodcastAudioController.EXTRA_STREAM_OFFSET_MS, positionMs)
+        }
+        return buildUpon()
+            .setUri(ApiClient.withStartTime(url, positionMs / 1000.0))
+            .setMediaMetadata(mediaMetadata.buildUpon().setExtras(extras).build())
+            .build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -84,11 +143,17 @@ class PodcastPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        castPlayer?.run {
+            setSessionAvailabilityListener(null)
+            release()
+        }
+        castPlayer = null
         mediaSession?.run {
-            player.release()
             release()
             mediaSession = null
         }
+        exoPlayer?.release()
+        exoPlayer = null
         super.onDestroy()
     }
 

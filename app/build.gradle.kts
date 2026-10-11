@@ -153,6 +153,9 @@ dependencies {
     implementation("androidx.media3:media3-session:$media3Version")
     implementation("androidx.media3:media3-ui:$media3Version")
     implementation("androidx.media3:media3-common:$media3Version")
+    // Chromecast: CastPlayer + the MediaRouter button/dialog
+    implementation("androidx.media3:media3-cast:$media3Version")
+    implementation("androidx.mediarouter:mediarouter:1.7.0")
 
     // DataStore Preferences
     implementation("androidx.datastore:datastore-preferences:1.1.1")
