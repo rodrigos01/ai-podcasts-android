@@ -69,4 +69,15 @@ class AudioStreamAuthTest {
         assertFalse(urlClean.contains("token="))
         assertFalse(urlClean.contains("?"))
     }
+
+    @Test
+    fun testWithStartTimeSetsAndReplacesResumeOffset() {
+        val api = com.rodrigos01.aipodcasts.data.api.ApiClient
+        val base = "https://api.example.com/podcasts/p/episodes/e/audio"
+        assertEquals("$base?t=75.0", api.withStartTime(base, 75.0))
+        assertEquals("$base?t=12.5", api.withStartTime("$base?t=75.0", 12.5))
+        assertEquals(base, api.withStartTime("$base?t=75.0", null))
+        assertEquals(base, api.withStartTime(base, 0.0))
+        assertEquals("$base?x=1&t=3.0", api.withStartTime("$base?x=1&t=9.0", 3.0))
+    }
 }
