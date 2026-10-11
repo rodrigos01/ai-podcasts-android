@@ -56,6 +56,10 @@ jobs:
         run: |
           gcloud storage cp --recursive "gs://${GCS_SECRETS_BUCKET}/${{ github.repository }}/*" .
 
+      # :wear shares :app's applicationId, so the same Firebase config applies to it.
+      - name: Copy google-services.json for the Wear module
+        run: cp app/google-services.json wear/google-services.json
+
       - name: Make gradlew executable
         run: chmod +x gradlew
 
@@ -67,6 +71,13 @@ jobs:
         with:
           name: app-prod-release
           path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      - name: Upload Wear APK build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wear-prod-release
+          path: wear/build/outputs/apk/release/*.apk
           retention-days: 30
 
       - name: Distribute release via Firebase App Distribution

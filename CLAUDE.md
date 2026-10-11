@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Android (Kotlin, Jetpack Compose) client for the "AI Podcasts" backend — an app that lets a user generate fictional-host podcast episodes (and audiobook chapters) from source material via an LLM/TTS pipeline, then stream and listen to them. This repo is the **client only**; the backend is a separate Node/TypeScript service (its API is documented in [docs/backend_docs.md](docs/backend_docs.md) and is the source of truth for request/response shapes, auth, and the audio-streaming contract).
 
-- `applicationId` / package root: `com.rodrigos01.aipodcasts`
+- `applicationId` / package root: `com.rodrigos01.aipodcasts` (the `:wear` Wear OS module reuses the same `applicationId`, with Kotlin package `com.rodrigos01.aipodcasts.wear`)
 - `minSdk` 26, `targetSdk`/`compileSdk` 35, Java/Kotlin target 21
 - Default backend base URL is hardcoded in `ApiClient.DEFAULT_BASE_URL` (Cloud Run); it can be overridden at runtime (see Settings screen / `SettingsRepository`).
 
@@ -25,6 +25,10 @@ All commands run from the repo root. On Windows use `gradlew.bat`; `gradlew` (no
 ./gradlew testDebugUnitTest --tests "com.rodrigos01.aipodcasts.PodcastModelAndLogicTest"
 ./gradlew testDebugUnitTest --tests "com.rodrigos01.aipodcasts.PodcastModelAndLogicTest.testAudioStreamUrlBuilder"
 
+# Build the Wear OS app (module :wear) / its unit tests
+./gradlew :wear:assembleDebug
+./gradlew :wear:testDebugUnitTest
+
 # Lint
 ./gradlew lint
 
@@ -33,6 +37,8 @@ All commands run from the repo root. On Windows use `gradlew.bat`; `gradlew` (no
 ```
 
 There are currently no instrumented (`androidTest`) tests, only JVM unit tests under `app/src/test`. `unitTests.isReturnDefaultValues = true` is set, so unmocked Android SDK calls return defaults instead of throwing in unit tests.
+
+`app/google-services.json` is also needed by `:wear` (it shares the Firebase app): copy it to `wear/google-services.json` (gitignored; the session-start hook and CI do this).
 
 Two files required for the app to build/sign but not committed in a template sense (already present locally, treat as secrets): `app/google-services.json` (Firebase config) and `app/ai-audio-book-*.json` (Firebase App Distribution service credentials, referenced from `app/build.gradle.kts`'s release `firebaseAppDistribution` block).
 
@@ -58,3 +64,12 @@ Three files under `player/`:
 ### Auth & Google Drive import
 
 `AuthRepository` wraps Firebase Auth (Google sign-in via Credential Manager / `googleid`); the resulting ID token is what `AuthInterceptor` forwards to the backend and what `ApiClient.buildAudioStreamUrl` embeds for the audio element. `data/drive/GoogleDriveHelper` + `util/FileUtils` support importing a source document directly from Google Drive/Docs (extracting a file ID from various URI forms, then downloading content) as an alternative to uploading a local file, feeding into `SourceRepository`.
+
+### Wear OS app (`:wear`)
+
+A standalone watch client (browse podcasts → episodes → episode → player; streaming only, no downloads), modeled on the AI Audio Book watch app. It is self-contained (no shared `:core` module): it duplicates the small slice of the phone's data/player code it needs, so keep these in sync when changing them — `StreamLogic` ↔ `PodcastAudioController` companion, `WearConfig.buildAudioStreamUrl` ↔ `ApiClient.buildAudioStreamUrl`, `WearPodcastRepository` mappers ↔ `FirestoreMappers`, and the pairing message paths/`PairTokenMessage` ↔ `watch/WatchPairing.kt` in `:app`.
+
+- **Must keep `applicationId = com.rodrigos01.aipodcasts`** (and the same signing cert as `:app`): the Wearable Data Layer only routes messages between a phone and watch app with the same package and signature.
+- **Auth pairing:** the watch has no login. It sends `/aipodcasts/auth-token-request` to the phone; `:app`'s `watch/WatchAuthRelay.kt` calls the **AI Audio Book backend's** `POST api/auth/pair` (`PairingApi.PAIRING_BASE_URL` — the two apps share an auth backend/Firebase project, and the podcasts API has no pair endpoint) with the user's ID token and replies on `/aipodcasts/auth-token-result` with the Firebase custom token, which the watch signs in with.
+- **Episode screen:** full-width filled `Play` (from the start) and `Resume <time>` (only with ≥3s saved progress) buttons, then the episode description (`topics`) below them. Saved positions live on the watch only (`PlaybackPositionStore`), not synced with the phone.
+- The watch plays through its own `WearPlaybackService`/`WearAudioController`, using the same `?t=` resume + `audioComplete` end-detection contract as the phone.

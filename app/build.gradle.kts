@@ -140,6 +140,9 @@ dependencies {
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
+    // Wearable Data Layer (auth-pairing relay to the Wear OS app)
+    implementation("com.google.android.gms:play-services-wearable:19.0.0")
+
     // Networking: Retrofit & Moshi & OkHttp
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-moshi:2.11.0")
@@ -171,6 +174,8 @@ dependencies {
 
     // Testing
     testImplementation("junit:junit:4.13.2")
+    // Real org.json: the android.jar stub's JSONObject returns defaults under isReturnDefaultValues
+    testImplementation("org.json:json:20240303")
     testImplementation("org.mockito:mockito-core:5.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
