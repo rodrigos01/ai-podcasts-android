@@ -114,9 +114,10 @@ class PodcastPlaybackService : MediaSessionService() {
         session.player = to
 
         if (item != null) {
+            // playWhenReady first: a CastPlayer includes it in the receiver load request.
+            to.playWhenReady = playWhenReady
             to.setMediaItem(item.withStreamStart(positionMs))
             to.prepare()
-            to.playWhenReady = playWhenReady
         }
     }
 

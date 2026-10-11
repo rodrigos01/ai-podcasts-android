@@ -347,6 +347,9 @@ class PodcastAudioController(
             // (e.g. while the URL above is fetched) would briefly report - and persist - a
             // wrong position.
             streamStartOffsetMs = positionMs
+            // Set before loading: a CastPlayer sends playWhenReady to the receiver with the load
+            // request, so calling play() only after setMediaItem() can leave the receiver paused.
+            player.playWhenReady = play
             player.setMediaItem(mediaItem)
             player.prepare()
             if (play) player.play()
