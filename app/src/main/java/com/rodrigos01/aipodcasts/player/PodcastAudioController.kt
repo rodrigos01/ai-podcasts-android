@@ -383,7 +383,7 @@ class PodcastAudioController(
      */
     fun stop() {
         _currentEpisode.value?.let { ep ->
-            playbackPositionRepository.savePositionMs(ep.id, _currentPositionMs.value)
+            playbackPositionRepository.savePositionMs(ep.id, _currentPositionMs.value, checkpoint = true)
         }
         _currentEpisode.value = null
         _currentPodcastTitle.value = ""
