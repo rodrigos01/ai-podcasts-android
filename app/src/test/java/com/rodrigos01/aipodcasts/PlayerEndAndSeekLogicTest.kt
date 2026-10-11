@@ -75,4 +75,18 @@ class PlayerEndAndSeekLogicTest {
         assertFalse(live.audioComplete)
         assertNull(live.audioDurationSeconds)
     }
+
+    @Test
+    fun castDurationIsZeroWhileGeneratingAndExactOnceComplete() {
+        val f = PodcastAudioController.Companion::completeAudioDurationMs
+        // Still generating (a duration alone doesn't count without the complete flag).
+        assertEquals(0L, f(false, 0L, false, null))
+        assertEquals(0L, f(false, 0L, false, 120.0))
+        // Complete per the live listener wins.
+        assertEquals(fiftyMinMs, f(true, fiftyMinMs, false, null))
+        // Playback just started: the listener hasn't reported, the episode doc already says complete.
+        assertEquals(90_500L, f(false, 0L, true, 90.5))
+        // Complete flag without a duration can't be sent as a finite stream.
+        assertEquals(0L, f(true, 0L, true, null))
+    }
 }
