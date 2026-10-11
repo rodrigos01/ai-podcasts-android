@@ -48,7 +48,6 @@ import androidx.media3.common.util.UnstableApi
 import com.rodrigos01.aipodcasts.R
 import com.rodrigos01.aipodcasts.data.model.Episode
 import com.rodrigos01.aipodcasts.player.PodcastAudioController
-import com.rodrigos01.aipodcasts.ui.components.CastButton
 import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
 
@@ -310,9 +309,7 @@ private fun PlayerContent(
 
         // Playback Speed Chips
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
                 FilterChip(
@@ -327,8 +324,6 @@ private fun PlayerContent(
                     shape = ExpressiveShapes.extraSmall
                 )
             }
-            Spacer(modifier = Modifier.weight(1f))
-            CastButton()
         }
     }
 }
