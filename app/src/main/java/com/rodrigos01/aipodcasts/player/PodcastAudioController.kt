@@ -335,7 +335,13 @@ class PodcastAudioController(
         restartJob?.cancel()
         restartJob = scope.launch {
             val baseUrl = resolveAudioUrl(podcastId, episode.id)
-            val extras = Bundle().apply { putLong(EXTRA_STREAM_OFFSET_MS, positionMs) }
+            val extras = Bundle().apply {
+                putLong(EXTRA_STREAM_OFFSET_MS, positionMs)
+                putLong(
+                    EXTRA_COMPLETE_DURATION_MS,
+                    completeAudioDurationMs(audioComplete, audioDurationMs, episode.audioComplete, episode.audioDurationSeconds)
+                )
+            }
             val mediaItem = MediaItem.Builder()
                 .setUri(ApiClient.withStartTime(baseUrl, positionMs / 1000.0))
                 .setMimeType(AUDIO_MIME_TYPE)
@@ -390,6 +396,26 @@ class PodcastAudioController(
     companion object {
         /** MediaItem extras key: where in the episode (ms) the item's stream starts. */
         const val EXTRA_STREAM_OFFSET_MS = "streamStartOffsetMs"
+
+        /** MediaItem extras key: the episode's exact duration (ms) if its audio is complete, else 0 (still generating). */
+        const val EXTRA_COMPLETE_DURATION_MS = "completeDurationMs"
+
+        /**
+         * The exact duration to give a cast receiver when the audio is complete, or 0 while it is
+         * still generating. Prefers the live Firestore-listener values; falls back to the episode
+         * document the screen already had, since the listener hasn't reported yet when playback
+         * starts and a finished episode must not be sent as live.
+         */
+        fun completeAudioDurationMs(
+            liveComplete: Boolean,
+            liveDurationMs: Long,
+            docComplete: Boolean,
+            docDurationSeconds: Double?
+        ): Long {
+            if (liveComplete && liveDurationMs > 0) return liveDurationMs
+            val docMs = ((docDurationSeconds ?: 0.0) * 1000).toLong()
+            return if (docComplete && docMs > 0) docMs else 0L
+        }
 
         // What the backend serves (raw ADTS); CastPlayer requires a MIME type on the item.
         const val AUDIO_MIME_TYPE = "audio/aac"
