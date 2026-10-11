@@ -23,6 +23,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:launchMode="singleTop"
             android:exported="true"
             android:theme="@style/Theme.AIPodcasts"
             android:windowSoftInputMode="adjustResize">

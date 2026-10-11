@@ -485,9 +485,9 @@ private fun EpisodeWizardScreen(
                             draft = draft,
                             isRevising = uiState.isRevising,
                             isBusy = uiState.isRevising || uiState.isConfirming,
-                            onApplyPredictedChange = { change ->
-                                onApplyRevision(page)
-                            },
+                            // Tapping a suggestion fills the revision field (which enables the
+                            // revise button) rather than revising straight away.
+                            onApplyPredictedChange = { change -> onRevisionInstructionChanged(change) },
                             onUpdateDraft = onUpdateDraft
                         )
                     }

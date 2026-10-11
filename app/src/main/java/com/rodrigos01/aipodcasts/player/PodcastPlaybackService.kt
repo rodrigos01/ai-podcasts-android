@@ -1,5 +1,6 @@
 package com.rodrigos01.aipodcasts.player
 
+import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -14,6 +15,7 @@ import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import com.rodrigos01.aipodcasts.AIPodcastsApplication
+import com.rodrigos01.aipodcasts.MainActivity
 import com.rodrigos01.aipodcasts.data.repository.AuthRepository
 
 @UnstableApi
@@ -69,7 +71,18 @@ class PodcastPlaybackService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .build()
 
-        mediaSession = MediaSession.Builder(this, player).build()
+        val openPlayerIntent = Intent(this, MainActivity::class.java).apply {
+            putExtra(MainActivity.EXTRA_OPEN_PLAYER, true)
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val sessionActivity = PendingIntent.getActivity(
+            this, 0, openPlayerIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        mediaSession = MediaSession.Builder(this, player)
+            .setSessionActivity(sessionActivity)
+            .build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {

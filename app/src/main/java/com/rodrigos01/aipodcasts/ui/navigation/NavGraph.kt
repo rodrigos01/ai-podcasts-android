@@ -30,7 +30,8 @@ import com.rodrigos01.aipodcasts.ui.screens.wizard.PodcastWizardScreen
 @Composable
 fun PodcastNavGraph(
     navController: NavHostController,
-    startDestination: String = Screen.Home.route
+    startDestination: String = Screen.Home.route,
+    openPlayerSignal: Int = 0
 ) {
     val audioController = AIPodcastsApplication.instance.audioController
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -39,6 +40,7 @@ fun PodcastNavGraph(
     PlayerScaffold(
         audioController = audioController,
         showBottomBar = currentRoute != Screen.Auth.route,
+        openPlayerSignal = openPlayerSignal,
         modifier = Modifier.fillMaxSize()
     ) {
         NavHost(
