@@ -88,7 +88,7 @@ class PodcastPlaybackService : MediaSessionService() {
     // just leaves local playback.
     private fun setUpCast(local: ExoPlayer) {
         val castContext = runCatching { CastContext.getSharedInstance(this) }.getOrNull() ?: return
-        val cast = CastPlayer(castContext)
+        val cast = CastPlayer(castContext, CastMediaItemConverter())
         castPlayer = cast
         cast.setSessionAvailabilityListener(object : SessionAvailabilityListener {
             override fun onCastSessionAvailable() = switchPlayer(from = local, to = cast)
