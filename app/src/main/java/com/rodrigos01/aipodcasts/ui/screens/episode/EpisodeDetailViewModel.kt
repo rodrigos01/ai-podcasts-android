@@ -101,9 +101,7 @@ class EpisodeDetailViewModel(
 
         // If this episode is already active in player and we're not forcing restart, simply toggle play
         if (!forceFromBeginning && audioController.currentEpisode.value?.id == ep.id) {
-            if (!audioController.isPlaying.value) {
-                audioController.togglePlayPause()
-            }
+            audioController.togglePlayPause()
             return
         }
 

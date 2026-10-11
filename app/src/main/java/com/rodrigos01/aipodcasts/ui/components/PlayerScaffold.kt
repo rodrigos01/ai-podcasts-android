@@ -16,6 +16,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,11 +41,19 @@ fun PlayerScaffold(
     audioController: PodcastAudioController,
     modifier: Modifier = Modifier,
     showBottomBar: Boolean = true,
+    openPlayerSignal: Int = 0,
     bottomBar: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit
 ) {
     var showPlayerSheet by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // The media notification asks for the full player; only meaningful if something is loaded.
+    LaunchedEffect(openPlayerSignal) {
+        if (openPlayerSignal > 0 && audioController.currentEpisode.value != null) {
+            showPlayerSheet = true
+        }
+    }
     val isKeyboardVisible = WindowInsets.isImeVisible
 
     // With edge-to-edge, windowSoftInputMode=adjustResize no longer shrinks the window, so the
