@@ -41,13 +41,15 @@ fun WearPlayerScreen(audioController: WearAudioController, modifier: Modifier = 
     val positionMs by audioController.positionMs.collectAsState()
     val durationMs by audioController.durationMs.collectAsState()
     val error by audioController.error.collectAsState()
+    val pendingSeekMs by audioController.pendingSeekMs.collectAsState()
 
     WearPlayerScreen(
         episodeTitle = episode?.title.orEmpty(),
         podcastTitle = podcastTitle,
         isPlaying = isPlaying,
         isBuffering = isBuffering,
-        positionMs = positionMs,
+        positionMs = pendingSeekMs ?: positionMs,
+        isSeekPending = pendingSeekMs != null,
         durationMs = durationMs,
         error = error,
         onPlayPauseClick = audioController::togglePlayPause,
@@ -64,6 +66,7 @@ fun WearPlayerScreen(
     isPlaying: Boolean,
     isBuffering: Boolean,
     positionMs: Long,
+    isSeekPending: Boolean,
     durationMs: Long,
     error: String?,
     onPlayPauseClick: () -> Unit,
@@ -113,11 +116,13 @@ fun WearPlayerScreen(
         Text(
             when {
                 error != null -> error
-                isBuffering -> "Buffering…"
+                isBuffering && !isSeekPending -> "Buffering…"
                 durationMs > 0 -> "${formatTimeMs(positionMs)} / ${formatTimeMs(durationMs)}"
                 else -> formatTimeMs(positionMs)
             },
-            style = MaterialTheme.typography.labelMedium
+            style = MaterialTheme.typography.labelMedium,
+            // The skip target, not yet applied: highlighted until the seek actually happens.
+            color = if (isSeekPending) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
         )
     }
 }
@@ -132,6 +137,7 @@ private fun WearPlayerScreenPreview() {
             isPlaying = true,
             isBuffering = false,
             positionMs = 131_000,
+            isSeekPending = false,
             durationMs = 228_000,
             error = null,
             onPlayPauseClick = {},
