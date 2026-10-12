@@ -89,4 +89,30 @@ class PlayerEndAndSeekLogicTest {
         // Complete flag without a duration can't be sent as a finite stream.
         assertEquals(0L, f(true, 0L, true, null))
     }
+
+    @Test
+    fun completeEpisodeResumesByRange_neverByQueryParam() {
+        val start = PodcastAudioController.streamStart(754_200, audioComplete = true)
+        assertNull(start.timeSeconds)               // plain (signed) URL, no t=
+        assertEquals(754_200L, start.playerStartMs) // the player requests the byte range itself
+        assertEquals(0L, start.streamOffsetMs)      // so player time == episode time
+    }
+
+    @Test
+    fun generatingEpisodeResumesWithTimeParam() {
+        val start = PodcastAudioController.streamStart(754_200, audioComplete = false)
+        assertEquals(754.2, start.timeSeconds!!, 0.0001)
+        assertEquals(0L, start.playerStartMs)
+        assertEquals(754_200L, start.streamOffsetMs)
+    }
+
+    @Test
+    fun startingFromTheBeginningNeedsNoOffsetEitherWay() {
+        for (complete in listOf(true, false)) {
+            val start = PodcastAudioController.streamStart(0, complete)
+            assertNull(start.timeSeconds)
+            assertEquals(0L, start.playerStartMs)
+            assertEquals(0L, start.streamOffsetMs)
+        }
+    }
 }

@@ -19,6 +19,7 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.MainActivity
@@ -48,7 +49,11 @@ class PodcastPlaybackService : MediaSessionService() {
             AudioStreamTokenResolver(authRepository)
         )
 
-        val mediaSourceFactory = DefaultMediaSourceFactory(this)
+        // A fully generated episode is a plain AAC (ADTS) file; ADTS has no seek table, so let the
+        // player seek it by byte offset (a Range request) - this is how resuming works there.
+        val extractorsFactory = DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true)
+
+        val mediaSourceFactory = DefaultMediaSourceFactory(this, extractorsFactory)
             .setDataSourceFactory(resolvingDataSourceFactory)
             // ExoPlayer retries dropped/stalled loads itself (re-opening through the token
             // resolver, so a fresh token each time); just give it more attempts than the default.
@@ -130,18 +135,25 @@ class PodcastPlaybackService : MediaSessionService() {
         if (item != null) {
             // playWhenReady first: a CastPlayer includes it in the receiver load request.
             to.playWhenReady = false
-            to.setMediaItem(item.withStreamStart(positionMs))
+            val start = PodcastAudioController.streamStart(positionMs, audioComplete = item.isAudioComplete())
+            to.setMediaItem(item.withStreamStart(start), start.playerStartMs)
             to.prepare()
         }
     }
 
-    private fun MediaItem.withStreamStart(positionMs: Long): MediaItem {
+    // The controller marks a fully generated episode by its exact duration in the item's extras.
+    private fun MediaItem.isAudioComplete(): Boolean =
+        (mediaMetadata.extras?.getLong(PodcastAudioController.EXTRA_COMPLETE_DURATION_MS) ?: 0L) > 0L
+
+    // Re-targets the item's stream per [PodcastAudioController.streamStart]: `t=` for a live
+    // episode, the plain URL (the player starts at the position) for a complete one.
+    private fun MediaItem.withStreamStart(start: PodcastAudioController.Companion.StreamStart): MediaItem {
         val url = localConfiguration?.uri?.toString() ?: return this
         val extras = android.os.Bundle(mediaMetadata.extras ?: android.os.Bundle.EMPTY).apply {
-            putLong(PodcastAudioController.EXTRA_STREAM_OFFSET_MS, positionMs)
+            putLong(PodcastAudioController.EXTRA_STREAM_OFFSET_MS, start.streamOffsetMs)
         }
         return buildUpon()
-            .setUri(ApiClient.withStartTime(url, positionMs / 1000.0))
+            .setUri(ApiClient.withStartTime(url, start.timeSeconds))
             .setMediaMetadata(mediaMetadata.buildUpon().setExtras(extras).build())
             .build()
     }
