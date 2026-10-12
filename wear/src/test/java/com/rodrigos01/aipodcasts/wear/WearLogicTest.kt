@@ -78,6 +78,32 @@ class WearLogicTest {
     }
 
     @Test
+    fun streamStart_completeEpisodeResumesByRange_neverByQueryParam() {
+        val start = StreamLogic.streamStart(754_200, audioComplete = true)
+        assertNull(start.timeSeconds)              // plain (signed) URL, no t=
+        assertEquals(754_200, start.playerStartMs) // player requests the byte range itself
+        assertEquals(0, start.streamOffsetMs)      // so player time == episode time
+    }
+
+    @Test
+    fun streamStart_generatingEpisodeResumesWithTimeParam() {
+        val start = StreamLogic.streamStart(754_200, audioComplete = false)
+        assertEquals(754.2, start.timeSeconds!!, 0.0001)
+        assertEquals(0, start.playerStartMs)
+        assertEquals(754_200, start.streamOffsetMs)
+    }
+
+    @Test
+    fun streamStart_fromTheBeginningNeedsNoOffsetEitherWay() {
+        for (complete in listOf(true, false)) {
+            val start = StreamLogic.streamStart(0, complete)
+            assertNull(start.timeSeconds)
+            assertEquals(0, start.playerStartMs)
+            assertEquals(0, start.streamOffsetMs)
+        }
+    }
+
+    @Test
     fun isGenuineEnd_requiresCompleteAudioAndPlaybackAtItsEnd() {
         assertTrue(StreamLogic.isGenuineEnd(597_500, audioComplete = true, audioDurationMs = 600_000))
         assertFalse(StreamLogic.isGenuineEnd(300_000, audioComplete = true, audioDurationMs = 600_000))

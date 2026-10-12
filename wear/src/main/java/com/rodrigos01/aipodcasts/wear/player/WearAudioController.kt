@@ -204,16 +204,17 @@ class WearAudioController(
         _currentEpisode.value = episode
         _podcastTitle.value = podcastTitle
         currentPodcastId = podcastId
-        _generatedAudioSeconds.value = null
-        audioComplete = false
-        audioDurationMs = 0L
-        _durationMs.value = 0L
+        // Seed completion from the episode we were handed (the live listener below keeps it
+        // current): whether it is fully generated decides how the stream is opened.
+        _generatedAudioSeconds.value = episode.generatedAudioSeconds
+        audioDurationMs = ((episode.audioDurationSeconds ?: 0.0) * 1000).toLong()
+        audioComplete = episode.audioComplete && audioDurationMs > 0
+        _durationMs.value = if (audioComplete) audioDurationMs else 0L
         observeEpisodeAudioProgress(podcastId, episode.id)
 
         val savedMs = if (fromBeginning) 0L else positions.getPositionMs(episode.id)
         val startMs = if (SyncedPositionStore.canResume(savedMs)) savedMs else 0L
         if (fromBeginning) positions.clearPosition(episode.id)
-        streamStartOffsetMs = startMs
         _positionMs.value = startMs
 
         openStream(startMs, play = true)
@@ -296,16 +297,18 @@ class WearAudioController(
                     }
             val player = mediaController ?: return@launch
 
-            streamStartOffsetMs = positionMs
-            player.setMediaItem(buildMediaItem(baseUrl, episode.title, podcastTitle, positionMs))
+            val start = StreamLogic.streamStart(positionMs, audioComplete)
+            streamStartOffsetMs = start.streamOffsetMs
+            player.setMediaItem(buildMediaItem(baseUrl, episode.title, podcastTitle, start.timeSeconds), start.playerStartMs)
             player.prepare()
             if (play) player.play()
         }
     }
 
-    private fun buildMediaItem(baseUrl: String, episodeTitle: String, podcastTitle: String, startMs: Long): MediaItem =
+    private fun buildMediaItem(baseUrl: String, episodeTitle: String, podcastTitle: String, timeSeconds: Double?): MediaItem =
         MediaItem.Builder()
-            .setUri(WearConfig.withStartTime(baseUrl, if (startMs > 0) startMs / 1000.0 else null))
+            // A null offset leaves the (signed) URL exactly as the backend returned it.
+            .setUri(if (timeSeconds == null) baseUrl else WearConfig.withStartTime(baseUrl, timeSeconds))
             .setMimeType(WearConfig.AUDIO_MIME_TYPE)
             .setMediaMetadata(
                 MediaMetadata.Builder()

@@ -16,6 +16,27 @@ object StreamLogic {
     const val END_TOLERANCE_MS = 3_000L
 
     /**
+     * How to open the audio at [positionMs]. The two kinds of episode are resumed differently:
+     *
+     * - **Fully generated** (`audioComplete`): a normal static file served with `Range` support,
+     *   so open the plain URL and let the player start at the position (it issues the `Range`
+     *   request). The public URL is signed, so no query parameter may be appended to it. The
+     *   stream then starts at 0, so there is no offset between player and episode time.
+     * - **Still generating**: the stream is live/chunked and can't be ranged into, so ask the
+     *   backend to start it at `t=<seconds>`; the player's position is then offset by [positionMs].
+     */
+    data class StreamStart(val timeSeconds: Double?, val playerStartMs: Long, val streamOffsetMs: Long)
+
+    fun streamStart(positionMs: Long, audioComplete: Boolean): StreamStart {
+        val start = positionMs.coerceAtLeast(0L)
+        return if (audioComplete) {
+            StreamStart(timeSeconds = null, playerStartMs = start, streamOffsetMs = 0L)
+        } else {
+            StreamStart(timeSeconds = if (start > 0) start / 1000.0 else null, playerStartMs = 0L, streamOffsetMs = start)
+        }
+    }
+
+    /**
      * Whether a stream that just ended means the episode really finished: only when the backend
      * says the audio is complete AND playback reached its end. A response that merely closed
      * (live edge, proxy timeout, dropped connection) is not a finish.
