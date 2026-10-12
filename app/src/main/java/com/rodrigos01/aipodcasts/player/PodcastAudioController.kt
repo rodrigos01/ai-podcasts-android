@@ -335,15 +335,15 @@ class PodcastAudioController(
         restartJob?.cancel()
         restartJob = scope.launch {
             val baseUrl = resolveAudioUrl(podcastId, episode.id)
+            val completeDurationMs =
+                completeAudioDurationMs(audioComplete, audioDurationMs, episode.audioComplete, episode.audioDurationSeconds)
+            val start = streamStart(positionMs, audioComplete = completeDurationMs > 0)
             val extras = Bundle().apply {
-                putLong(EXTRA_STREAM_OFFSET_MS, positionMs)
-                putLong(
-                    EXTRA_COMPLETE_DURATION_MS,
-                    completeAudioDurationMs(audioComplete, audioDurationMs, episode.audioComplete, episode.audioDurationSeconds)
-                )
+                putLong(EXTRA_STREAM_OFFSET_MS, start.streamOffsetMs)
+                putLong(EXTRA_COMPLETE_DURATION_MS, completeDurationMs)
             }
             val mediaItem = MediaItem.Builder()
-                .setUri(ApiClient.withStartTime(baseUrl, positionMs / 1000.0))
+                .setUri(if (start.timeSeconds == null) baseUrl else ApiClient.withStartTime(baseUrl, start.timeSeconds))
                 .setMimeType(AUDIO_MIME_TYPE)
                 .setMediaMetadata(metadata.buildUpon().setExtras(extras).build())
                 .build()
@@ -352,11 +352,11 @@ class PodcastAudioController(
             // to the player's position, so changing the offset before the old item is replaced
             // (e.g. while the URL above is fetched) would briefly report - and persist - a
             // wrong position.
-            streamStartOffsetMs = positionMs
+            streamStartOffsetMs = start.streamOffsetMs
             // Set before loading: a CastPlayer sends playWhenReady to the receiver with the load
             // request, so calling play() only after setMediaItem() can leave the receiver paused.
             player.playWhenReady = play
-            player.setMediaItem(mediaItem)
+            player.setMediaItem(mediaItem, start.playerStartMs)
             player.prepare()
             if (play) player.play()
         }
@@ -446,6 +446,25 @@ class PodcastAudioController(
             if (liveComplete && liveDurationMs > 0) return liveDurationMs
             val docMs = ((docDurationSeconds ?: 0.0) * 1000).toLong()
             return if (docComplete && docMs > 0) docMs else 0L
+        }
+
+        /**
+         * How to open the audio at [positionMs]. A fully generated episode is a static file served
+         * with `Range` support: open the plain URL (the public URL is signed, so no query
+         * parameter may be appended) and have the player start at the position, which makes it
+         * (or the cast receiver) send the `Range` request; the stream then starts at 0. A
+         * still-generating episode is a live chunked stream that can't be ranged into, so the
+         * backend is asked to start it at `t=<seconds>` and the player position is offset by it.
+         */
+        data class StreamStart(val timeSeconds: Double?, val playerStartMs: Long, val streamOffsetMs: Long)
+
+        fun streamStart(positionMs: Long, audioComplete: Boolean): StreamStart {
+            val start = positionMs.coerceAtLeast(0L)
+            return if (audioComplete) {
+                StreamStart(timeSeconds = null, playerStartMs = start, streamOffsetMs = 0L)
+            } else {
+                StreamStart(timeSeconds = if (start > 0) start / 1000.0 else null, playerStartMs = 0L, streamOffsetMs = start)
+            }
         }
 
         // What the backend serves (raw ADTS); CastPlayer requires a MIME type on the item.
