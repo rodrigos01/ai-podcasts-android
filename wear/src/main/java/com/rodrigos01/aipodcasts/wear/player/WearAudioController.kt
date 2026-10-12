@@ -49,6 +49,7 @@ class WearAudioController(
     private var episodeProgressJob: Job? = null
     private var resumeJob: Job? = null
     private var openJob: Job? = null
+    private var seekJob: Job? = null
     private val audioUrls = mutableMapOf<String, String>()
     private var resumeAttempts = 0
     private var resumeBaselineMs = 0L
@@ -72,6 +73,13 @@ class WearAudioController(
 
     private val _positionMs = MutableStateFlow(0L)
     val positionMs: StateFlow<Long> = _positionMs.asStateFlow()
+
+    /**
+     * Where a pending skip will land, shown on the player while the user keeps tapping; the seek
+     * itself is only performed once they stop (see [seekRelative]). Null when nothing is pending.
+     */
+    private val _pendingSeekMs = MutableStateFlow<Long?>(null)
+    val pendingSeekMs: StateFlow<Long?> = _pendingSeekMs.asStateFlow()
 
     /** The backend's exact duration once the audio is complete; 0 while it is still generating. */
     private val _durationMs = MutableStateFlow(0L)
@@ -198,6 +206,7 @@ class WearAudioController(
             if (previous.id != episode.id) positions.savePositionMs(previous.id, _positionMs.value, checkpoint = true)
         }
 
+        discardPendingSeek()
         resumeJob?.cancel()
         resumeAttempts = 0
         resumeBaselineMs = 0L
@@ -222,6 +231,8 @@ class WearAudioController(
 
     fun togglePlayPause() {
         val player = mediaController ?: return
+        // A skip still waiting out its delay is applied first, not lost.
+        commitPendingSeek()
         when {
             player.isPlaying -> {
                 resumeJob?.cancel()
@@ -238,9 +249,35 @@ class WearAudioController(
         }
     }
 
+    /**
+     * Skips by [offsetSeconds], but doesn't act on it straight away: each tap moves a pending
+     * target (shown via [pendingSeekMs]) and the actual seek - which can mean opening a new
+     * stream and buffering - happens once the taps have stopped for
+     * [StreamLogic.SEEK_DEBOUNCE_MS], so the user can reach the position they want first.
+     */
     fun seekRelative(offsetSeconds: Int) {
-        if (seekUpperBoundMs() <= 0L) return
-        seekTo(_positionMs.value + offsetSeconds * 1000L)
+        val upperBoundMs = seekUpperBoundMs()
+        if (upperBoundMs <= 0L) return
+        val base = _pendingSeekMs.value ?: _positionMs.value
+        _pendingSeekMs.value = StreamLogic.skipTarget(base, offsetSeconds, upperBoundMs)
+
+        seekJob?.cancel()
+        seekJob = scope.launch {
+            delay(StreamLogic.SEEK_DEBOUNCE_MS)
+            commitPendingSeek()
+        }
+    }
+
+    private fun commitPendingSeek() {
+        seekJob?.cancel()
+        val target = _pendingSeekMs.value ?: return
+        _pendingSeekMs.value = null
+        seekTo(target)
+    }
+
+    private fun discardPendingSeek() {
+        seekJob?.cancel()
+        _pendingSeekMs.value = null
     }
 
     // The furthest position that exists: the exact duration once complete, otherwise how much

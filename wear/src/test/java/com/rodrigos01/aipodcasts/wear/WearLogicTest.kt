@@ -104,6 +104,16 @@ class WearLogicTest {
     }
 
     @Test
+    fun skipTarget_accumulatesTapsAndClampsToWhatExists() {
+        val end = 600_000L
+        var target = 100_000L
+        repeat(3) { target = StreamLogic.skipTarget(target, 10, end) }
+        assertEquals(130_000, target)                                 // three +10s taps
+        assertEquals(0, StreamLogic.skipTarget(5_000, -10, end))      // can't go before the start
+        assertEquals(end, StreamLogic.skipTarget(595_000, 10, end))   // or past the end
+    }
+
+    @Test
     fun isGenuineEnd_requiresCompleteAudioAndPlaybackAtItsEnd() {
         assertTrue(StreamLogic.isGenuineEnd(597_500, audioComplete = true, audioDurationMs = 600_000))
         assertFalse(StreamLogic.isGenuineEnd(300_000, audioComplete = true, audioDurationMs = 600_000))

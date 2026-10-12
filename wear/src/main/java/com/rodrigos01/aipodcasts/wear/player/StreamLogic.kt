@@ -12,6 +12,16 @@ object StreamLogic {
     /** Playback this far past where an early-end resume began counts as "it worked". */
     const val RESUME_PROGRESS_RESET_MS = 5_000L
 
+    /** How long after the last skip tap the seek is actually performed. */
+    const val SEEK_DEBOUNCE_MS = 1_000L
+
+    /**
+     * The position a skip lands on: taps accumulate on top of [baseMs] (where the first tap was
+     * made, or the previous pending target), clamped to what exists, [upperBoundMs] > 0.
+     */
+    fun skipTarget(baseMs: Long, offsetSeconds: Int, upperBoundMs: Long): Long =
+        (baseMs + offsetSeconds * 1000L).coerceIn(0L, upperBoundMs)
+
     /** How close to the end a stopped stream must be to count as a genuine finish. */
     const val END_TOLERANCE_MS = 3_000L
 
