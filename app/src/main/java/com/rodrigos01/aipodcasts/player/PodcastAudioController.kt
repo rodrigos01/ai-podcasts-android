@@ -366,10 +366,9 @@ class PodcastAudioController(
     // the authenticated stream URL (the token resolver signs it), which plays locally but can't
     // be cast, and don't cache it so the next open tries again.
     private suspend fun resolveAudioUrl(podcastId: String, episodeId: String): String {
-        audioUrls[episodeId]?.let { return it }
-        return runCatching { episodeRepository.getAudioUrl(podcastId, episodeId) }
-            .onSuccess { audioUrls[episodeId] = it }
-            .getOrElse { ApiClient.buildAudioStreamUrl(podcastId, episodeId) }
+        // TEMPORARY (deploy-test): skip the audio/url lookup and always use the authenticated
+        // stream URL, to check whether audio/url breaks resuming episodes still generating.
+        return ApiClient.buildAudioStreamUrl(podcastId, episodeId)
     }
 
     fun seekRelative(offsetSeconds: Int) {
