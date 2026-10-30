@@ -246,4 +246,32 @@ class PodcastModelAndLogicTest {
         assertEquals(0L, repo.getPositionMs("ep1"))
     }
 
+
+    @Test
+    fun wizardObjectsRoundTripUnknownFields() {
+        val wizardMoshi = Moshi.Builder()
+            .add(com.rodrigos01.aipodcasts.data.api.UnknownFieldsAdapterFactory())
+            .addLast(KotlinJsonAdapterFactory())
+            .build()
+        val adapter = wizardMoshi.adapter(PodcastOption::class.java)
+        val json = """
+            {"title":"T","description":"D","structure":"S","newTop":{"a":[1,"x"]},
+             "hosts":[{"id":"h1","name":"A","voice":"v","persona":"p","newHostField":"keep"}]}
+        """.trimIndent()
+
+        val option = adapter.fromJson(json)!!
+        val edited = option.copy(
+            title = "Edited",
+            hosts = option.hosts.map { it.copy(name = "B") }
+        )
+        val out = wizardMoshi.adapter(Any::class.java).fromJson(adapter.toJson(edited)) as Map<*, *>
+
+        assertEquals("Edited", out["title"])
+        assertEquals(mapOf("a" to listOf(1.0, "x")), out["newTop"])
+        val host = (out["hosts"] as List<*>).single() as Map<*, *>
+        assertEquals("B", host["name"])
+        assertEquals("keep", host["newHostField"])
+        assertTrue("null fields stay omitted", !host.containsKey("voicePrompt"))
+    }
+
 }

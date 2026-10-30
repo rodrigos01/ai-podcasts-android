@@ -104,7 +104,8 @@ class PodcastRepository(
         structure: String,
         hosts: List<Host>,
         sessionId: String? = null,
-        languageCode: String? = null
+        languageCode: String? = null,
+        extras: Map<String, Any?> = emptyMap()
     ): Podcast {
         val request = CreatePodcastRequest(
             title = title,
@@ -112,7 +113,8 @@ class PodcastRepository(
             structure = structure,
             languageCode = languageCode,
             hosts = hosts,
-            sessionId = sessionId
+            sessionId = sessionId,
+            extras = extras
         )
         return api.createPodcast(request)
     }

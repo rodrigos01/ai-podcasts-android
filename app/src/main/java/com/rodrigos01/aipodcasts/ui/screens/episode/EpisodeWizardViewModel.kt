@@ -699,7 +699,8 @@ class EpisodeWizardViewModel(
                 sourceIds = sourceIds,
                 participantHostIds = selections[index].hostIds.toList(),
                 guests = selections[index].guests,
-                productionNotes = draft.productionNotes?.trim()?.ifBlank { null }
+                productionNotes = draft.productionNotes?.trim()?.ifBlank { null },
+                extras = draft.extras
             )
         }
 
