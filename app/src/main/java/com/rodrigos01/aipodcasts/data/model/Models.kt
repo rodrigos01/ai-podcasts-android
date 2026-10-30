@@ -1,5 +1,6 @@
 package com.rodrigos01.aipodcasts.data.model
 
+import com.rodrigos01.aipodcasts.data.api.UnknownFieldsHolder
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
@@ -18,8 +19,12 @@ data class Host(
     @Json(name = "persona") val persona: String,
     // Voice design: the text a voice is designed from, and the voice picked for this host.
     @Json(name = "voicePrompt") val voicePrompt: String? = null,
-    @Json(name = "resolvedVoiceId") val resolvedVoiceId: String? = null
-)
+    @Json(name = "resolvedVoiceId") val resolvedVoiceId: String? = null,
+    // Fields this client doesn't know about, echoed back to the server unchanged.
+    @Transient override val extras: Map<String, Any?> = emptyMap()
+) : UnknownFieldsHolder {
+    override fun withExtras(extras: Map<String, Any?>) = copy(extras = extras)
+}
 
 @JsonClass(generateAdapter = true)
 data class Podcast(
@@ -41,8 +46,12 @@ data class CreatePodcastRequest(
     @Json(name = "languageCode") val languageCode: String? = null,
     @Json(name = "hosts") val hosts: List<Host>,
     // The wizard's voice-design session, so picked voices are validated and unused candidates cleaned up.
-    @Json(name = "sessionId") val sessionId: String? = null
-)
+    @Json(name = "sessionId") val sessionId: String? = null,
+    // Fields this client doesn't know about, echoed back to the server unchanged.
+    @Transient override val extras: Map<String, Any?> = emptyMap()
+) : UnknownFieldsHolder {
+    override fun withExtras(extras: Map<String, Any?>) = copy(extras = extras)
+}
 
 @JsonClass(generateAdapter = true)
 data class UpdatePodcastRequest(
@@ -71,8 +80,12 @@ data class PodcastOption(
     // Returned by the wizard; keep it on the option and send it back on create.
     @Json(name = "languageCode") val languageCode: String? = null,
     @Json(name = "hosts") val hosts: List<Host> = emptyList(),
-    @Json(name = "predictedChanges") val predictedChanges: List<String> = emptyList()
-)
+    @Json(name = "predictedChanges") val predictedChanges: List<String> = emptyList(),
+    // Fields this client doesn't know about, echoed back to the server unchanged.
+    @Transient override val extras: Map<String, Any?> = emptyMap()
+) : UnknownFieldsHolder {
+    override fun withExtras(extras: Map<String, Any?>) = copy(extras = extras)
+}
 
 @JsonClass(generateAdapter = true)
 data class PodcastWizardOptionsRequest(
@@ -126,8 +139,12 @@ data class EpisodeGuest(
     @Json(name = "voice") val voice: String,
     @Json(name = "persona") val persona: String,
     @Json(name = "voicePrompt") val voicePrompt: String? = null,
-    @Json(name = "resolvedVoiceId") val resolvedVoiceId: String? = null
-)
+    @Json(name = "resolvedVoiceId") val resolvedVoiceId: String? = null,
+    // Fields this client doesn't know about, echoed back to the server unchanged.
+    @Transient override val extras: Map<String, Any?> = emptyMap()
+) : UnknownFieldsHolder {
+    override fun withExtras(extras: Map<String, Any?>) = copy(extras = extras)
+}
 
 @JsonClass(generateAdapter = true)
 data class EpisodeDraft(
@@ -135,8 +152,12 @@ data class EpisodeDraft(
     @Json(name = "topics") val topics: String,
     @Json(name = "productionNotes") val productionNotes: String? = null,
     @Json(name = "guests") val guests: List<EpisodeGuest> = emptyList(),
-    @Json(name = "predictedChanges") val predictedChanges: List<String> = emptyList()
-)
+    @Json(name = "predictedChanges") val predictedChanges: List<String> = emptyList(),
+    // Fields this client doesn't know about, echoed back to the server unchanged.
+    @Transient override val extras: Map<String, Any?> = emptyMap()
+) : UnknownFieldsHolder {
+    override fun withExtras(extras: Map<String, Any?>) = copy(extras = extras)
+}
 
 // One suggestion is either a single episode or a 2-episode split - see the
 // backend's wizard.schema.ts episodeSuggestionSchema. The client shows every
@@ -144,8 +165,12 @@ data class EpisodeDraft(
 // speaker configuration and revision targeting.
 @JsonClass(generateAdapter = true)
 data class EpisodeSuggestion(
-    @Json(name = "episodes") val episodes: List<EpisodeDraft>
-)
+    @Json(name = "episodes") val episodes: List<EpisodeDraft>,
+    // Fields this client doesn't know about, echoed back to the server unchanged.
+    @Transient override val extras: Map<String, Any?> = emptyMap()
+) : UnknownFieldsHolder {
+    override fun withExtras(extras: Map<String, Any?>) = copy(extras = extras)
+}
 
 @JsonClass(generateAdapter = true)
 data class EpisodeWizardOptionsRequest(
@@ -180,8 +205,12 @@ data class EpisodeCreateInput(
     @Json(name = "sourceIds") val sourceIds: List<String>,
     @Json(name = "participantHostIds") val participantHostIds: List<String>,
     @Json(name = "guests") val guests: List<EpisodeGuest> = emptyList(),
-    @Json(name = "productionNotes") val productionNotes: String? = null
-)
+    @Json(name = "productionNotes") val productionNotes: String? = null,
+    // Fields this client doesn't know about, echoed back to the server unchanged.
+    @Transient override val extras: Map<String, Any?> = emptyMap()
+) : UnknownFieldsHolder {
+    override fun withExtras(extras: Map<String, Any?>) = copy(extras = extras)
+}
 
 // Confirm always takes a whole suggestion's episodes array (1 entry, or 2 for
 // a split) in one request; the server creates and sequences them.

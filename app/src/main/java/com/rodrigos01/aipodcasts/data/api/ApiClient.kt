@@ -70,6 +70,7 @@ object ApiClient {
         .build()
 
     private val moshi = Moshi.Builder()
+        .add(UnknownFieldsAdapterFactory())
         .addLast(KotlinJsonAdapterFactory())
         .build()
 

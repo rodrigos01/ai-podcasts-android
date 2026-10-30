@@ -206,7 +206,8 @@ class PodcastWizardViewModel(
                     structure = chosen.structure,
                     hosts = chosen.hosts,
                     sessionId = _uiState.value.sessionId,
-                    languageCode = chosen.languageCode
+                    languageCode = chosen.languageCode,
+                    extras = chosen.extras
                 )
                 _uiState.value = _uiState.value.copy(
                     isCreating = false,
