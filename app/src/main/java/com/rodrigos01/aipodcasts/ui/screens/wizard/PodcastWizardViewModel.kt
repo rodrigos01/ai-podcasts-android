@@ -23,6 +23,8 @@ data class PodcastWizardUiState(
     val options: List<PodcastOption> = emptyList(),
     val selectedOptionIndex: Int = 0,
     val revisionInstruction: String = "",
+    // Written by the user, not part of the wizard's options; sent on create only.
+    val extraInstructions: String = "",
     val reviseTargetSelectedOnly: Boolean = true,
     // Voice-design session handed out by the wizard; echoed on revise and create.
     val sessionId: String? = null,
@@ -97,6 +99,10 @@ class PodcastWizardViewModel(
                 }
             )
         }
+    }
+
+    fun onExtraInstructionsChanged(value: String) {
+        _uiState.value = _uiState.value.copy(extraInstructions = value)
     }
 
     fun onRevisionInstructionChanged(instruction: String) {
@@ -207,6 +213,7 @@ class PodcastWizardViewModel(
                     hosts = chosen.hosts,
                     sessionId = _uiState.value.sessionId,
                     languageCode = chosen.languageCode,
+                    extraInstructions = _uiState.value.extraInstructions.trim().ifBlank { null },
                     extras = chosen.extras
                 )
                 _uiState.value = _uiState.value.copy(

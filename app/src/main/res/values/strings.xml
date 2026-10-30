@@ -178,6 +178,8 @@
     <string name="podcast_edit_field_title">Title</string>
     <string name="podcast_edit_field_description">Description</string>
     <string name="podcast_edit_field_structure">Structure &amp; Format</string>
+    <string name="podcast_extra_instructions_label">Extra instructions (optional)</string>
+    <string name="podcast_extra_instructions_hint">Applied on top of the description and structure when drafting and writing episodes.</string>
     <string name="podcast_edit_hosts_header">Hosts</string>
     <string name="podcast_edit_host_name">Name</string>
     <string name="podcast_edit_host_voice">Voice description</string>

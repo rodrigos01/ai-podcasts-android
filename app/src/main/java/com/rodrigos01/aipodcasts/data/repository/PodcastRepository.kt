@@ -105,6 +105,7 @@ class PodcastRepository(
         hosts: List<Host>,
         sessionId: String? = null,
         languageCode: String? = null,
+        extraInstructions: String? = null,
         extras: Map<String, Any?> = emptyMap()
     ): Podcast {
         val request = CreatePodcastRequest(
@@ -112,6 +113,7 @@ class PodcastRepository(
             description = description,
             structure = structure,
             languageCode = languageCode,
+            extraInstructions = extraInstructions,
             hosts = hosts,
             sessionId = sessionId,
             extras = extras
@@ -124,12 +126,14 @@ class PodcastRepository(
         title: String? = null,
         description: String? = null,
         structure: String? = null,
+        extraInstructions: String? = null,
         hosts: List<Host>? = null
     ): Podcast {
         val request = UpdatePodcastRequest(
             title = title,
             description = description,
             structure = structure,
+            extraInstructions = extraInstructions,
             hosts = hosts?.map {
                 HostUpdate(it.id.ifBlank { null }, it.name, it.voice, it.persona, it.voicePrompt, it.resolvedVoiceId)
             }

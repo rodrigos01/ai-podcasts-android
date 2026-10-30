@@ -22,6 +22,7 @@ data class PodcastEditUiState(
     val title: String = "",
     val description: String = "",
     val structure: String = "",
+    val extraInstructions: String = "",
     val hosts: List<Host> = emptyList(),
     /** Voice ids picked in this screen, so those hosts can be flagged as having a new voice. */
     val pickedVoiceIds: Set<String> = emptySet(),
@@ -83,6 +84,7 @@ class PodcastEditViewModel(
                         title = podcast.title,
                         description = podcast.description,
                         structure = podcast.structure,
+                        extraInstructions = podcast.extraInstructions.orEmpty(),
                         hosts = podcast.hosts
                     )
                 }
@@ -97,6 +99,7 @@ class PodcastEditViewModel(
     fun onTitleChanged(value: String) = _uiState.update { it.copy(title = value, validationError = false) }
     fun onDescriptionChanged(value: String) = _uiState.update { it.copy(description = value, validationError = false) }
     fun onStructureChanged(value: String) = _uiState.update { it.copy(structure = value, validationError = false) }
+    fun onExtraInstructionsChanged(value: String) = _uiState.update { it.copy(extraInstructions = value) }
 
     fun onHostChanged(index: Int, host: Host) = _uiState.update {
         it.copy(
@@ -133,6 +136,7 @@ class PodcastEditViewModel(
         val title = state.title.trim()
         val description = state.description.trim()
         val structure = state.structure.trim()
+        val extraInstructions = state.extraInstructions.trim()
         if (title.isEmpty() || description.isEmpty() || structure.isEmpty() ||
             hosts.any { it.name.isEmpty() || it.voice.isEmpty() || it.persona.isEmpty() }
         ) {
@@ -149,6 +153,8 @@ class PodcastEditViewModel(
                     title = title.takeIf { it != before.title },
                     description = description.takeIf { it != before.description },
                     structure = structure.takeIf { it != before.structure },
+                    // Optional: an empty string is sent to clear it.
+                    extraInstructions = extraInstructions.takeIf { it != before.extraInstructions.orEmpty() },
                     hosts = hosts.takeIf { it != before.hosts }
                 )
                 _uiState.update { it.copy(isSaving = false, isSaved = true) }

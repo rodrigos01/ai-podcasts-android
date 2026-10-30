@@ -88,6 +88,7 @@ fun PodcastWizardScreen(
         onApplyRevision = { viewModel.applyRevision(it) },
         onConfirmAndCreate = { viewModel.confirmAndCreatePodcast() },
         onUpdateOption = { viewModel.updateSelectedOption(it) },
+        onExtraInstructionsChanged = { viewModel.onExtraInstructionsChanged(it) },
         onUpdateHost = { index, name, persona -> viewModel.updateHost(index, name, persona) },
         onChooseHostVoice = { viewModel.chooseHostVoice(it) },
         voiceDesign = viewModel.voiceDesign
@@ -108,6 +109,7 @@ private fun PodcastWizardScreen(
     onApplyRevision: (String?) -> Unit,
     onConfirmAndCreate: () -> Unit,
     onUpdateOption: ((PodcastOption) -> PodcastOption) -> Unit,
+    onExtraInstructionsChanged: (String) -> Unit,
     onUpdateHost: (Int, String, String) -> Unit,
     onChooseHostVoice: (Int) -> Unit,
     voiceDesign: VoiceDesignController?
@@ -262,6 +264,19 @@ private fun PodcastWizardScreen(
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = uiState.extraInstructions,
+                    onValueChange = onExtraInstructionsChanged,
+                    label = { Text(stringResource(R.string.podcast_extra_instructions_label)) },
+                    supportingText = { Text(stringResource(R.string.podcast_extra_instructions_hint)) },
+                    minLines = 3,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    enabled = !uiState.isRevising && !uiState.isCreating,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveShapes.small
+                )
 
                 Spacer(modifier = Modifier.height(20.dp))
 
@@ -522,6 +537,7 @@ fun PodcastWizardStep1Preview() {
             onApplyRevision = {},
             onConfirmAndCreate = {},
             onUpdateOption = {},
+            onExtraInstructionsChanged = {},
             onUpdateHost = { _, _, _ -> },
             onChooseHostVoice = {},
             voiceDesign = null
@@ -565,6 +581,7 @@ fun PodcastWizardStep2Preview() {
             onApplyRevision = {},
             onConfirmAndCreate = {},
             onUpdateOption = {},
+            onExtraInstructionsChanged = {},
             onUpdateHost = { _, _, _ -> },
             onChooseHostVoice = {},
             voiceDesign = null
