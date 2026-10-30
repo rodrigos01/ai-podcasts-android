@@ -268,6 +268,21 @@ private fun PodcastDetailScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+
+                            if (!podcast.extraInstructions.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Text(
+                                    text = stringResource(R.string.podcast_extra_instructions_label),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = podcast.extraInstructions,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }

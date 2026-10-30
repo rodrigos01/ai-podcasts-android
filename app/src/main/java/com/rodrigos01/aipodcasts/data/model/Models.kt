@@ -34,6 +34,9 @@ data class Podcast(
     @Json(name = "structure") val structure: String,
     // BCP-47 tag (e.g. "pt-BR") the show is spoken in; voices are designed for it. Absent on older podcasts.
     @Json(name = "languageCode") val languageCode: String? = null,
+    // User-written instructions applied on top of the description and structure when drafting
+    // and writing episodes. Absent when unset.
+    @Json(name = "extraInstructions") val extraInstructions: String? = null,
     @Json(name = "hosts") val hosts: List<Host> = emptyList(),
     @Json(name = "createdAt") val createdAt: Any? = null
 )
@@ -44,6 +47,7 @@ data class CreatePodcastRequest(
     @Json(name = "description") val description: String,
     @Json(name = "structure") val structure: String,
     @Json(name = "languageCode") val languageCode: String? = null,
+    @Json(name = "extraInstructions") val extraInstructions: String? = null,
     @Json(name = "hosts") val hosts: List<Host>,
     // The wizard's voice-design session, so picked voices are validated and unused candidates cleaned up.
     @Json(name = "sessionId") val sessionId: String? = null,
@@ -58,6 +62,8 @@ data class UpdatePodcastRequest(
     @Json(name = "title") val title: String? = null,
     @Json(name = "description") val description: String? = null,
     @Json(name = "structure") val structure: String? = null,
+    // An empty string clears the stored instructions; null leaves them untouched.
+    @Json(name = "extraInstructions") val extraInstructions: String? = null,
     @Json(name = "hosts") val hosts: List<HostUpdate>? = null
 )
 

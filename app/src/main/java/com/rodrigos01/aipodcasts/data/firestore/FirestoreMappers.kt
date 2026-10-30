@@ -33,6 +33,7 @@ object FirestoreMappers {
             description = data["description"] as? String ?: "",
             structure = data["structure"] as? String ?: "",
             languageCode = data["languageCode"] as? String,
+            extraInstructions = data["extraInstructions"] as? String,
             hosts = hosts,
             createdAt = data["createdAt"]
         )

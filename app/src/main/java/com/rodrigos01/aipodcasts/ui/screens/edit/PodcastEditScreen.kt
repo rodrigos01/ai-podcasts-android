@@ -121,6 +121,17 @@ fun PodcastEditScreen(
                         shape = ExpressiveShapes.small,
                         enabled = editable
                     )
+                    OutlinedTextField(
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        value = state.extraInstructions,
+                        onValueChange = viewModel::onExtraInstructionsChanged,
+                        label = { Text(stringResource(R.string.podcast_extra_instructions_label)) },
+                        supportingText = { Text(stringResource(R.string.podcast_extra_instructions_hint)) },
+                        minLines = 3,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ExpressiveShapes.small,
+                        enabled = editable
+                    )
 
                     Text(
                         text = stringResource(R.string.podcast_edit_hosts_header),
