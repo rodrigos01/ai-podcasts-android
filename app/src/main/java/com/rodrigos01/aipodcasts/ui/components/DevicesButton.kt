@@ -30,8 +30,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.mediarouter.app.MediaRouteChooserDialog
-import androidx.mediarouter.app.MediaRouteButton
 import androidx.mediarouter.app.MediaRouteControllerDialog
+import androidx.mediarouter.app.SystemOutputSwitcherDialogController
 import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
 import androidx.mediarouter.media.MediaRouterParams
@@ -71,11 +71,8 @@ fun DevicesButton(modifier: Modifier = Modifier) {
             // The dialogs are AppCompat dialogs; the activity theme is an AppCompat one.
             val themed = ContextThemeWrapper(context.findActivity() ?: context, androidx.appcompat.R.style.Theme_AppCompat_Light)
             val router = MediaRouter.getInstance(context)
-            // With the output switcher enabled this opens the system switcher; otherwise (or if
-            // it can't be shown) fall back to MediaRouter's own dialogs.
-            val systemSwitcherShown = router.routerParams?.isOutputSwitcherEnabled == true &&
-                MediaRouteButton(themed).apply { routeSelector = selector }.showDialog()
-            if (systemSwitcherShown) return@IconButton
+            // The system output switcher; false where it isn't available, then MediaRouter's own dialogs.
+            if (SystemOutputSwitcherDialogController.showDialog(context)) return@IconButton
             if (router.selectedRoute.isDefaultOrBluetooth) {
                 MediaRouteChooserDialog(themed).apply { routeSelector = selector }.show()
             } else {
