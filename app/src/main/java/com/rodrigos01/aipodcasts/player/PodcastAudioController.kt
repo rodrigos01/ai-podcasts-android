@@ -48,6 +48,10 @@ class PodcastAudioController(
     private var currentPodcastId: String? = null
     private var currentIdToken: String? = null
 
+    // Set while the current episode is restored from the last session but its stream hasn't been
+    // opened yet: nothing is loaded in the player until the user taps play.
+    private var pendingMetadata: MediaMetadata? = null
+
     // Public (unauthenticated) audio URL per episode, from GET .../audio/url. It's stable, so one
     // fetch serves the local player and any cast receiver, which can't send a token.
     private val audioUrls = mutableMapOf<String, String>()
@@ -157,8 +161,8 @@ class PodcastAudioController(
         })
     }
 
-    // Brings back the episode that was loaded when the app last ran, paused at its saved position,
-    // so the mini player is there on launch. Skipped if something is already loaded (the user was
+    // Brings back the episode that was loaded when the app last ran, at its saved position, so the
+    // mini player is there on launch. Its stream is only opened when the user taps play. Skipped if something is already loaded (the user was
     // quicker, or the playback service outlived the app and still holds an item).
     private fun restoreLastPlayed() {
         val last = playbackPositionRepository.getLastPlayed() ?: return
@@ -249,6 +253,7 @@ class PodcastAudioController(
         resumeJob?.cancel()
         resumeAttempts = 0
         resumeBaselineMs = 0L
+        pendingMetadata = null
         _currentEpisode.value = episode
         _currentPodcastTitle.value = podcastTitle
         currentPodcastId = podcastId
@@ -280,11 +285,20 @@ class PodcastAudioController(
             .setDisplayTitle(episode.title)
             .build()
 
-        openStream(startMs, metadata, play = autoPlay)
+        if (autoPlay) {
+            openStream(startMs, metadata, play = true)
+        } else {
+            pendingMetadata = metadata
+        }
     }
 
     fun togglePlayPause() {
         val player = mediaController ?: return
+        pendingMetadata?.let { metadata ->
+            pendingMetadata = null
+            openStream(_currentPositionMs.value, metadata, play = true)
+            return
+        }
         if (player.isPlaying) {
             resumeJob?.cancel()
             player.pause()
@@ -310,6 +324,15 @@ class PodcastAudioController(
         val upperBoundMs = seekUpperBoundMs()
         if (upperBoundMs <= 0L) return
         val targetMs = positionMs.coerceIn(0L, upperBoundMs)
+
+        if (pendingMetadata != null) {
+            // Nothing is loaded yet; just move the start position of the stream opened on play.
+            _currentPositionMs.value = targetMs
+            _currentEpisode.value?.let { ep ->
+                playbackPositionRepository.savePositionMs(ep.id, targetMs, checkpoint = true)
+            }
+            return
+        }
 
         if (canSeekInPlayer(targetMs, streamStartOffsetMs, player.duration, player.isCurrentMediaItemSeekable)) {
             player.seekTo(targetMs - streamStartOffsetMs)
@@ -403,6 +426,7 @@ class PodcastAudioController(
             playbackPositionRepository.savePositionMs(ep.id, _currentPositionMs.value, checkpoint = true)
         }
         playbackPositionRepository.clearLastPlayed()
+        pendingMetadata = null
         _currentEpisode.value = null
         _currentPodcastTitle.value = ""
         stopProgressLoop()
