@@ -10,7 +10,6 @@ import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Hearing
-import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material.icons.filled.SpeakerGroup
 import androidx.compose.material.icons.filled.SportsEsports
@@ -19,6 +18,8 @@ import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -82,7 +83,8 @@ fun DevicesButton(modifier: Modifier = Modifier) {
     ) {
         Icon(
             imageVector = iconForRoute(outputs.deviceType, outputs.isDefaultRoute),
-            contentDescription = stringResource(R.string.action_devices)
+            contentDescription = stringResource(R.string.action_devices),
+            tint = if (outputs.isDefaultRoute) LocalContentColor.current else MaterialTheme.colorScheme.primary
         )
     }
 }
@@ -107,11 +109,14 @@ private tailrec fun Context.findActivity(): android.app.Activity? = when (this) 
     else -> null
 }
 
-/** The icon for the output device type MediaRouter reports for the selected route. */
+/**
+ * The icon for the output device type MediaRouter reports for the selected route; the generic
+ * devices icon while playing on this phone.
+ */
 internal fun iconForRoute(deviceType: Int, isDefaultRoute: Boolean): ImageVector = when {
-    isDefaultRoute -> Icons.Default.PhoneAndroid
+    isDefaultRoute -> Icons.Default.Devices
     else -> when (deviceType) {
-        RouteInfo.DEVICE_TYPE_BUILTIN_SPEAKER, RouteInfo.DEVICE_TYPE_SMARTPHONE -> Icons.Default.PhoneAndroid
+        RouteInfo.DEVICE_TYPE_BUILTIN_SPEAKER, RouteInfo.DEVICE_TYPE_SMARTPHONE -> Icons.Default.Devices
         RouteInfo.DEVICE_TYPE_TV, RouteInfo.DEVICE_TYPE_HDMI, RouteInfo.DEVICE_TYPE_HDMI_ARC,
         RouteInfo.DEVICE_TYPE_HDMI_EARC -> Icons.Default.Tv
         RouteInfo.DEVICE_TYPE_SPEAKER, RouteInfo.DEVICE_TYPE_REMOTE_SPEAKER,
