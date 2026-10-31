@@ -53,7 +53,7 @@ import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.R
 import com.rodrigos01.aipodcasts.data.model.Episode
 import com.rodrigos01.aipodcasts.data.model.EpisodeGuest
-import com.rodrigos01.aipodcasts.ui.components.CastButton
+import com.rodrigos01.aipodcasts.ui.components.DevicesButton
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
 import com.rodrigos01.aipodcasts.ui.components.LocalContentPadding
 import com.rodrigos01.aipodcasts.ui.components.StatusBadge
@@ -132,7 +132,7 @@ private fun EpisodeDetailScreen(
             onNavigateBack = onNavigateBack,
             actions = {
                 if (uiState.episode != null) {
-                    CastButton()
+                    DevicesButton()
                     IconButton(onClick = onEditClick) {
                         Icon(
                             imageVector = Icons.Default.Edit,

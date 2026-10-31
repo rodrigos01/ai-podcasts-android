@@ -3,6 +3,7 @@ package com.rodrigos01.aipodcasts.player
 import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
@@ -45,6 +46,10 @@ class PodcastAudioController(
     private var resumeAttempts: Int = 0
     private var resumeBaselineMs: Long = 0L
     private var streamStartOffsetMs: Long = 0L
+    // True from asking for a new stream until its item is set on the player. Until then the player
+    // still holds the previous item (on a cast receiver, whatever it was last playing), so its
+    // position must not be reported or saved as the new episode's.
+    private var loadingStream: Boolean = false
     private var currentPodcastId: String? = null
     private var currentIdToken: String? = null
 
@@ -160,7 +165,7 @@ class PodcastAudioController(
         progressJob?.cancel()
         progressJob = scope.launch {
             while (isActive) {
-                mediaController?.let { player ->
+                mediaController?.takeUnless { loadingStream }?.let { player ->
                     val pos = streamStartOffsetMs + player.currentPosition.coerceAtLeast(0L)
                     _currentPositionMs.value = pos
                     _currentEpisode.value?.let { ep ->
@@ -294,7 +299,16 @@ class PodcastAudioController(
         if (upperBoundMs <= 0L) return
         val targetMs = positionMs.coerceIn(0L, upperBoundMs)
 
-        if (canSeekInPlayer(targetMs, streamStartOffsetMs, player.duration, player.isCurrentMediaItemSeekable)) {
+        val canSeek = canSeekInPlayer(targetMs, streamStartOffsetMs, player.duration, player.isCurrentMediaItemSeekable)
+        Log.d(
+            TAG,
+            "seekTo target=$targetMs offset=$streamStartOffsetMs playerDuration=${player.duration} " +
+                "seekable=${player.isCurrentMediaItemSeekable} " +
+                "seekCommand=${player.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)} " +
+                "audioComplete=$audioComplete loadingStream=$loadingStream inPlace=$canSeek " +
+                "deviceType=${player.deviceInfo.playbackType}"
+        )
+        if (canSeek) {
             player.seekTo(targetMs - streamStartOffsetMs)
             _currentPositionMs.value = targetMs
             _currentEpisode.value?.let { ep ->
@@ -333,6 +347,7 @@ class PodcastAudioController(
         val podcastId = currentPodcastId ?: return
 
         restartJob?.cancel()
+        loadingStream = true
         restartJob = scope.launch {
             val baseUrl = resolveAudioUrl(podcastId, episode.id)
             val completeDurationMs =
@@ -358,6 +373,7 @@ class PodcastAudioController(
             player.playWhenReady = play
             player.setMediaItem(mediaItem, start.playerStartMs)
             player.prepare()
+            loadingStream = false
             if (play) player.play()
         }
     }
@@ -391,6 +407,7 @@ class PodcastAudioController(
         episodeProgressJob?.cancel()
         resumeJob?.cancel()
         restartJob?.cancel()
+        loadingStream = false
         resumeAttempts = 0
         resumeBaselineMs = 0L
         streamStartOffsetMs = 0L
@@ -425,6 +442,8 @@ class PodcastAudioController(
     }
 
     companion object {
+        private const val TAG = "PodcastAudioController"
+
         /** MediaItem extras key: where in the episode (ms) the item's stream starts. */
         const val EXTRA_STREAM_OFFSET_MS = "streamStartOffsetMs"
 
