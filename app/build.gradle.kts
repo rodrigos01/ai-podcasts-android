@@ -153,15 +153,15 @@ dependencies {
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // Jetpack Media3 (ExoPlayer & MediaSession)
-    val media3Version = "1.5.0"
+    val media3Version = "1.9.0"
     implementation("androidx.media3:media3-exoplayer:$media3Version")
     implementation("androidx.media3:media3-session:$media3Version")
     implementation("androidx.media3:media3-ui:$media3Version")
     implementation("androidx.media3:media3-common:$media3Version")
-    // Chromecast: CastPlayer + the MediaRouter button/dialog
+    // Chromecast: CastPlayer (wraps the local ExoPlayer) + the MediaRouter device dialogs
     implementation("androidx.media3:media3-cast:$media3Version")
-    implementation("androidx.mediarouter:mediarouter:1.7.0")
-    // MediaRouteButton (cast button) needs an AppCompat theme, so compile against it directly
+    implementation("androidx.mediarouter:mediarouter:1.8.1")
+    // The MediaRouter device dialogs need an AppCompat theme, so compile against it directly
     implementation("androidx.appcompat:appcompat:1.7.0")
 
     // DataStore Preferences

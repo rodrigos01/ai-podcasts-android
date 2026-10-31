@@ -7,8 +7,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.cast.CastPlayer
-import androidx.media3.cast.SessionAvailabilityListener
-import com.google.android.gms.cast.framework.CastContext
+import androidx.media3.cast.RemoteCastPlayer
 import com.rodrigos01.aipodcasts.data.api.ApiClient
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -93,44 +92,40 @@ class PodcastPlaybackService : MediaSessionService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        mediaSession = MediaSession.Builder(this, player)
+        exoPlayer = player
+        // The session drives the CastPlayer, which wraps the local ExoPlayer and plays on
+        // whichever output is selected (this phone, a Chromecast, ...). Cast is optional (no Play
+        // Services), so if it can't be built the session just uses the ExoPlayer.
+        val sessionPlayer = buildCastPlayer(player) ?: player
+        mediaSession = MediaSession.Builder(this, sessionPlayer)
             .setSessionActivity(sessionActivity)
             .build()
-        exoPlayer = player
-        setUpCast(player)
     }
 
-    // The session drives whichever player is current: the local ExoPlayer, or a CastPlayer while
-    // a Chromecast session is connected. The MediaController in the app doesn't know the
-    // difference. Cast is optional (no Play Services, no cast devices), so failing to set it up
-    // just leaves local playback.
-    private fun setUpCast(local: ExoPlayer) {
-        val castContext = runCatching { CastContext.getSharedInstance(this) }.getOrNull() ?: return
-        val cast = CastPlayer(castContext, CastMediaItemConverter())
-        castPlayer = cast
-        cast.setSessionAvailabilityListener(object : SessionAvailabilityListener {
-            override fun onCastSessionAvailable() = switchPlayer(from = local, to = cast)
-            override fun onCastSessionUnavailable() = switchPlayer(from = cast, to = local)
-        })
-        if (cast.isCastSessionAvailable) switchPlayer(from = local, to = cast)
-    }
+    private fun buildCastPlayer(local: ExoPlayer): CastPlayer? = runCatching {
+        CastPlayer.Builder(this)
+            .setLocalPlayer(local)
+            .setRemotePlayer(
+                RemoteCastPlayer.Builder(this)
+                    .setMediaItemConverter(CastMediaItemConverter())
+                    .build()
+            )
+            .setTransferCallback(::transferState)
+            .build()
+    }.getOrNull()?.also { castPlayer = it }
 
-    // Hands the current item over to [to] at the same episode position and stops [from]. The
-    // item's stream starts at a `?t=` offset that the controller records in its extras, so the
-    // new player's stream is re-opened at the absolute position rather than at 0. Deliberately
-    // left paused on the new device (in either direction): the user presses play when ready,
-    // rather than audio suddenly starting on a TV or speaker.
-    private fun switchPlayer(from: Player, to: Player) {
-        val session = mediaSession ?: return
-        if (session.player === to) return
-
+    // Hands the current item over when playback moves between this phone and a cast device, at
+    // the same episode position. The item's stream starts at a `?t=` offset that the controller
+    // records in its extras, so the new player's stream is re-opened at the absolute position
+    // rather than at 0. Deliberately left paused on the new device (in either direction): the
+    // user presses play when ready, rather than audio suddenly starting on a TV or speaker.
+    private fun transferState(from: Player, to: Player) {
         val item = from.currentMediaItem
         val offsetMs = item?.mediaMetadata?.extras?.getLong(PodcastAudioController.EXTRA_STREAM_OFFSET_MS) ?: 0L
         val positionMs = offsetMs + from.currentPosition.coerceAtLeast(0L)
 
         from.stop()
         from.clearMediaItems()
-        session.player = to
 
         if (item != null) {
             // playWhenReady first: a CastPlayer includes it in the receiver load request.
@@ -170,10 +165,7 @@ class PodcastPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        castPlayer?.run {
-            setSessionAvailabilityListener(null)
-            release()
-        }
+        castPlayer?.release()
         castPlayer = null
         mediaSession?.run {
             release()
