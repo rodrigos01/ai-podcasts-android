@@ -30,9 +30,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.mediarouter.app.MediaRouteChooserDialog
+import androidx.mediarouter.app.MediaRouteButton
 import androidx.mediarouter.app.MediaRouteControllerDialog
 import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
+import androidx.mediarouter.media.MediaRouterParams
 import androidx.mediarouter.media.MediaRouter.RouteInfo
 import com.google.android.gms.cast.CastMediaControlIntent
 import com.google.android.gms.cast.framework.CastContext
@@ -59,6 +61,7 @@ fun DevicesButton(modifier: Modifier = Modifier) {
             )
             .build()
     }
+    remember(context) { enableOutputSwitcher(context) }
     val outputs = rememberOutputs(selector)
     if (!outputs.devicesAvailable) return
 
@@ -68,6 +71,11 @@ fun DevicesButton(modifier: Modifier = Modifier) {
             // The dialogs are AppCompat dialogs; the activity theme is an AppCompat one.
             val themed = ContextThemeWrapper(context.findActivity() ?: context, androidx.appcompat.R.style.Theme_AppCompat_Light)
             val router = MediaRouter.getInstance(context)
+            // With the output switcher enabled this opens the system switcher; otherwise (or if
+            // it can't be shown) fall back to MediaRouter's own dialogs.
+            val systemSwitcherShown = router.routerParams?.isOutputSwitcherEnabled == true &&
+                MediaRouteButton(themed).apply { routeSelector = selector }.showDialog()
+            if (systemSwitcherShown) return@IconButton
             if (router.selectedRoute.isDefaultOrBluetooth) {
                 MediaRouteChooserDialog(themed).apply { routeSelector = selector }.show()
             } else {
@@ -80,6 +88,20 @@ fun DevicesButton(modifier: Modifier = Modifier) {
             contentDescription = stringResource(R.string.action_devices)
         )
     }
+}
+
+/**
+ * MediaRouter only opens the system output switcher when this is on; otherwise the button falls
+ * back to MediaRouter's own dialog, which does its own network discovery (blocked on Android 17
+ * without ACCESS_LOCAL_NETWORK, so it shows an empty list). Transfer-to-local lets the switcher
+ * move playback back to this phone. Must be set before the router is used.
+ */
+private fun enableOutputSwitcher(context: Context) {
+    val router = MediaRouter.getInstance(context)
+    router.routerParams = MediaRouterParams.Builder(router.routerParams ?: MediaRouterParams.Builder().build())
+        .setOutputSwitcherEnabled(true)
+        .setTransferToLocalEnabled(true)
+        .build()
 }
 
 private tailrec fun Context.findActivity(): android.app.Activity? = when (this) {
