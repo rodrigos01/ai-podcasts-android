@@ -153,7 +153,9 @@ dependencies {
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // Jetpack Media3 (ExoPlayer & MediaSession)
-    val media3Version = "1.9.0"
+    // At least 1.9.2: 1.9.1 fixes RemoteCastPlayer's timeline going stale when the playlist is
+    // replaced (every episode switch), 1.9.2 fixes cast-to-local transfer.
+    val media3Version = "1.9.2"
     implementation("androidx.media3:media3-exoplayer:$media3Version")
     implementation("androidx.media3:media3-session:$media3Version")
     implementation("androidx.media3:media3-ui:$media3Version")
