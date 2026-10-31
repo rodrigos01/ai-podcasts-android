@@ -96,6 +96,7 @@ class PodcastAudioController(
             try {
                 mediaController = controllerFuture?.get()
                 setupPlayerListener()
+                restoreLastPlayed()
             } catch (e: Exception) {
                 // MediaController init fallback
             }
@@ -154,6 +155,20 @@ class PodcastAudioController(
                 _playbackSpeed.value = playbackParameters.speed
             }
         })
+    }
+
+    // Brings back the episode that was loaded when the app last ran, paused at its saved position,
+    // so the mini player is there on launch. Skipped if something is already loaded (the user was
+    // quicker, or the playback service outlived the app and still holds an item).
+    private fun restoreLastPlayed() {
+        val last = playbackPositionRepository.getLastPlayed() ?: return
+        scope.launch {
+            val episode = runCatching { episodeRepository.getEpisode(last.podcastId, last.episodeId) }
+                .getOrNull() ?: return@launch
+            val player = mediaController ?: return@launch
+            if (_currentEpisode.value != null || player.mediaItemCount > 0) return@launch
+            playEpisode(last.podcastId, last.podcastTitle, episode, idToken = null, autoPlay = false)
+        }
     }
 
     private fun startProgressLoop() {
@@ -219,7 +234,8 @@ class PodcastAudioController(
         podcastTitle: String,
         episode: Episode,
         idToken: String?,
-        forceFromBeginning: Boolean = false
+        forceFromBeginning: Boolean = false,
+        autoPlay: Boolean = true
     ) {
         val player = mediaController ?: return
 
@@ -237,6 +253,7 @@ class PodcastAudioController(
         _currentPodcastTitle.value = podcastTitle
         currentPodcastId = podcastId
         currentIdToken = idToken
+        playbackPositionRepository.saveLastPlayed(podcastId, podcastTitle, episode.id)
         if (idToken.isNullOrBlank()) {
             scope.launch {
                 val token = authRepository.getIdToken(forceRefresh = false)
@@ -263,7 +280,7 @@ class PodcastAudioController(
             .setDisplayTitle(episode.title)
             .build()
 
-        openStream(startMs, metadata, play = true)
+        openStream(startMs, metadata, play = autoPlay)
     }
 
     fun togglePlayPause() {
@@ -385,6 +402,7 @@ class PodcastAudioController(
         _currentEpisode.value?.let { ep ->
             playbackPositionRepository.savePositionMs(ep.id, _currentPositionMs.value, checkpoint = true)
         }
+        playbackPositionRepository.clearLastPlayed()
         _currentEpisode.value = null
         _currentPodcastTitle.value = ""
         stopProgressLoop()
