@@ -3,6 +3,7 @@ package com.rodrigos01.aipodcasts.player
 import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
@@ -298,7 +299,16 @@ class PodcastAudioController(
         if (upperBoundMs <= 0L) return
         val targetMs = positionMs.coerceIn(0L, upperBoundMs)
 
-        if (canSeekInPlayer(targetMs, streamStartOffsetMs, player.duration, player.isCurrentMediaItemSeekable)) {
+        val canSeek = canSeekInPlayer(targetMs, streamStartOffsetMs, player.duration, player.isCurrentMediaItemSeekable)
+        Log.d(
+            TAG,
+            "seekTo target=$targetMs offset=$streamStartOffsetMs playerDuration=${player.duration} " +
+                "seekable=${player.isCurrentMediaItemSeekable} " +
+                "seekCommand=${player.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)} " +
+                "audioComplete=$audioComplete loadingStream=$loadingStream inPlace=$canSeek " +
+                "deviceType=${player.deviceInfo.playbackType}"
+        )
+        if (canSeek) {
             player.seekTo(targetMs - streamStartOffsetMs)
             _currentPositionMs.value = targetMs
             _currentEpisode.value?.let { ep ->
@@ -432,6 +442,8 @@ class PodcastAudioController(
     }
 
     companion object {
+        private const val TAG = "PodcastAudioController"
+
         /** MediaItem extras key: where in the episode (ms) the item's stream starts. */
         const val EXTRA_STREAM_OFFSET_MS = "streamStartOffsetMs"
 
