@@ -75,19 +75,19 @@
 
     <!-- Podcast Detail Screen -->
     <string name="podcast_detail_title">Podcast Details</string>
-    <string name="podcast_detail_tab_episodes">Episodes</string>
-    <string name="podcast_detail_tab_sources">Sources</string>
-    <string name="podcast_detail_tab_about">About Show</string>
+    <string name="podcast_detail_episodes_header">Episodes</string>
+    <string name="podcast_detail_show_more">Show more</string>
+    <string name="podcast_detail_show_less">Show less</string>
     <string name="podcast_detail_hosts_header">Show Hosts</string>
     <string name="podcast_detail_structure_header">Structure &amp; Format</string>
     <string name="podcast_detail_new_episode_fab">New Episode</string>
-    <string name="podcast_detail_add_source_button">Add Source</string>
     <string name="podcast_detail_no_episodes">No episodes created yet. Tap \'+\' to start an episode draft!</string>
     <string name="podcast_detail_no_sources">No background sources yet. Sources are added while creating an episode.</string>
 
     <!-- Sources Screen -->
     <string name="sources_title">Background Sources</string>
     <string name="sources_desc">Sources are added while creating an episode — manage or remove them here.</string>
+    <string name="sources_manage_button_count">Manage sources (%1$d)</string>
     <string name="sources_add_title">Add Source Material</string>
     <string name="sources_source_title_label">Source Title</string>
     <string name="sources_source_content_label">Text Content</string>
@@ -95,13 +95,10 @@
     <string name="sources_upload_pdf_button">Upload PDF Document</string>
     <string name="sources_uploading_pdf">Extracting and uploading text from PDF…</string>
     <string name="sources_delete_confirm">Delete source \"%1$s\"?</string>
-    <string name="sources_tab_file">Local File</string>
+    <string name="sources_add_text_title">Add Plain Text</string>
+    <string name="sources_tab_file">Local file</string>
     <string name="sources_tab_drive">Google Drive</string>
-    <string name="sources_tab_text">Plain Text</string>
-    <string name="sources_select_file_button">Select File (PDF or TXT)</string>
-    <string name="sources_pick_drive_button">Pick from Google Drive</string>
-    <string name="sources_drive_resolving">Connecting to Google Drive…</string>
-    <string name="sources_drive_linked">Google Drive document linked</string>
+    <string name="sources_tab_text">Plain text</string>
     <string name="sources_drive_auth_required">Google Drive authorization required</string>
     <string name="sources_drive_not_found">Could not link file in Google Drive. Direct upload will be used.</string>
     <string name="sources_uploading_source">Adding source material…</string>
@@ -110,11 +107,17 @@
 
     <!-- Episode Wizard Screen -->
     <string name="episode_wizard_title">New Episode Wizard</string>
-    <string name="episode_wizard_step_sources_title">1. Select Reference Sources</string>
-    <string name="episode_wizard_step_sources_desc">Choose which sources this episode will cover. You can also provide an optional steering prompt.</string>
+    <string name="episode_wizard_step_sources_title">1. Add Reference Sources</string>
+    <string name="episode_wizard_step_sources_desc">Add the material this episode will cover. You can also provide an optional steering prompt.</string>
+    <string name="episode_wizard_add_sources_label">Add sources</string>
+    <string name="episode_wizard_existing_sources">Existing sources</string>
+    <string name="episode_wizard_existing_sources_title">Existing Sources</string>
+    <string name="episode_wizard_existing_sources_empty">This show has no sources yet.</string>
+    <string name="episode_wizard_selected_sources">Sources for this episode (%1$d)</string>
+    <string name="episode_wizard_remove_source">Remove %1$s</string>
     <string name="episode_wizard_select_all_sources">Select All</string>
     <string name="episode_wizard_deselect_all_sources">Deselect All</string>
-    <string name="episode_wizard_no_sources_yet">No sources yet. Add one below to get started.</string>
+    <string name="episode_wizard_no_sources_yet">No sources yet. Add one above to get started.</string>
     <string name="episode_wizard_predicted_changes">Suggested Revisions (tap to apply)</string>
     <string name="episode_wizard_prompt_label">Episode Steering Prompt (Optional)</string>
     <string name="episode_wizard_prompt_hint">e.g., Focus on the controversy around product design, with a lively debate.</string>
@@ -182,6 +185,8 @@
     <string name="podcast_extra_instructions_label">Extra instructions (optional)</string>
     <string name="podcast_extra_instructions_hint">Applied on top of the description and structure when drafting and writing episodes.</string>
     <string name="podcast_edit_hosts_header">Hosts</string>
+    <string name="podcast_edit_sources_header">Sources</string>
+    <string name="podcast_edit_sources_desc">Background material added while creating episodes.</string>
     <string name="podcast_edit_host_name">Name</string>
     <string name="podcast_edit_host_voice">Voice description</string>
     <string name="podcast_edit_host_persona">Persona</string>

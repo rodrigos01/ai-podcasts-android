@@ -7,7 +7,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -25,19 +25,19 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -52,8 +52,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -68,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -123,7 +122,7 @@ fun EpisodeWizardScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            viewModel.onAddSourceLocalFileSelected(context, uri)
+            viewModel.onAddSourceLocalFileSelected(context, podcastId, uri)
         }
     }
 
@@ -143,6 +142,7 @@ fun EpisodeWizardScreen(
         if (result.resultCode == Activity.RESULT_OK && result.data?.data != null) {
             viewModel.onAddSourceDriveFileSelected(
                 context = context,
+                podcastId = podcastId,
                 uri = result.data!!.data!!,
                 accountEmail = currentUserEmail,
                 onNeedConsent = { intentSenderRequest ->
@@ -166,20 +166,21 @@ fun EpisodeWizardScreen(
         uiState = uiState,
         pagerState = episodePagerState,
         onNavigateBack = onNavigateBack,
-        onToggleSourceSelection = { viewModel.toggleSourceSelection(it) },
-        onToggleSelectAllSources = { viewModel.toggleSelectAllSources() },
-        onOpenAddSourceDialog = { viewModel.openAddSourceDialog() },
-        onDismissAddSourceDialog = { viewModel.dismissAddSourceDialog() },
-        onSetAddSourceMode = { viewModel.setAddSourceMode(it) },
-        onAddSourceTitleChanged = { viewModel.onAddSourceTitleChanged(it) },
-        onAddSourceContentChanged = { viewModel.onAddSourceContentChanged(it) },
+        onRemoveSource = { viewModel.toggleSourceSelection(it) },
         onPickLocalFile = { localFilePickerLauncher.launch(arrayOf("application/pdf", "text/plain")) },
         onPickDriveFile = {
             driveFilePickerLauncher.launch(
                 FileUtils.createGoogleDrivePickerIntent(context, currentUserEmail)
             )
         },
-        onSubmitAddSource = { viewModel.submitAddSource(context, podcastId) },
+        onOpenTextSourceDialog = { viewModel.openTextSourceDialog() },
+        onDismissTextSourceDialog = { viewModel.dismissTextSourceDialog() },
+        onAddSourceTitleChanged = { viewModel.onAddSourceTitleChanged(it) },
+        onAddSourceContentChanged = { viewModel.onAddSourceContentChanged(it) },
+        onSubmitTextSource = { viewModel.submitTextSource(podcastId) },
+        onOpenExistingSourcesDialog = { viewModel.openExistingSourcesDialog() },
+        onDismissExistingSourcesDialog = { viewModel.dismissExistingSourcesDialog() },
+        onConfirmExistingSources = { viewModel.setSelectedSources(it) },
         onSteeringPromptChanged = { viewModel.onSteeringPromptChanged(it) },
         onSetEpisodeLength = { viewModel.setEpisodeLength(it) },
         onGenerateSuggestions = { viewModel.generateSuggestions(podcastId) },
@@ -201,16 +202,17 @@ private fun EpisodeWizardScreen(
     uiState: EpisodeWizardUiState,
     pagerState: PagerState,
     onNavigateBack: () -> Unit,
-    onToggleSourceSelection: (String) -> Unit,
-    onToggleSelectAllSources: () -> Unit,
-    onOpenAddSourceDialog: () -> Unit,
-    onDismissAddSourceDialog: () -> Unit,
-    onSetAddSourceMode: (AddSourceMode) -> Unit,
-    onAddSourceTitleChanged: (String) -> Unit,
-    onAddSourceContentChanged: (String) -> Unit,
+    onRemoveSource: (String) -> Unit,
     onPickLocalFile: () -> Unit,
     onPickDriveFile: () -> Unit,
-    onSubmitAddSource: () -> Unit,
+    onOpenTextSourceDialog: () -> Unit,
+    onDismissTextSourceDialog: () -> Unit,
+    onAddSourceTitleChanged: (String) -> Unit,
+    onAddSourceContentChanged: (String) -> Unit,
+    onSubmitTextSource: () -> Unit,
+    onOpenExistingSourcesDialog: () -> Unit,
+    onDismissExistingSourcesDialog: () -> Unit,
+    onConfirmExistingSources: (Set<String>) -> Unit,
     onSteeringPromptChanged: (String) -> Unit,
     onSetEpisodeLength: (String) -> Unit,
     onGenerateSuggestions: () -> Unit,
@@ -255,90 +257,91 @@ private fun EpisodeWizardScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
+                val addSourceState = uiState.addSource
+                val canAddSource = !addSourceState.isAdding && !uiState.isDrafting
+                val selectedSources = uiState.availableSources.filter { it.id in uiState.selectedSourceIds }
+
+                Text(
+                    text = stringResource(R.string.episode_wizard_add_sources_label),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "Available Sources (${uiState.selectedSourceIds.size}/${uiState.availableSources.size} selected)",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
+                    SourceActionButton(
+                        icon = Icons.Default.FolderOpen,
+                        label = stringResource(R.string.sources_tab_file),
+                        onClick = onPickLocalFile,
+                        enabled = canAddSource,
                         modifier = Modifier.weight(1f)
                     )
-                    if (uiState.availableSources.isNotEmpty()) {
-                        TextButton(onClick = onToggleSelectAllSources) {
-                            Text(
-                                text = if (uiState.selectedSourceIds.size == uiState.availableSources.size) {
-                                    stringResource(R.string.episode_wizard_deselect_all_sources)
-                                } else {
-                                    stringResource(R.string.episode_wizard_select_all_sources)
-                                }
-                            )
-                        }
-                    }
+                    SourceActionButton(
+                        icon = Icons.Default.Cloud,
+                        label = stringResource(R.string.sources_tab_drive),
+                        onClick = onPickDriveFile,
+                        enabled = canAddSource,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
-
                 Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedButton(
-                    onClick = onOpenAddSourceDialog,
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = ExpressiveShapes.small
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.podcast_detail_add_source_button))
+                    SourceActionButton(
+                        icon = Icons.Default.TextFields,
+                        label = stringResource(R.string.sources_tab_text),
+                        onClick = onOpenTextSourceDialog,
+                        enabled = canAddSource,
+                        modifier = Modifier.weight(1f)
+                    )
+                    SourceActionButton(
+                        icon = Icons.Default.Folder,
+                        label = stringResource(R.string.episode_wizard_existing_sources),
+                        onClick = onOpenExistingSourcesDialog,
+                        enabled = canAddSource && uiState.availableSources.isNotEmpty(),
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                if (uiState.availableSources.isEmpty()) {
+                if (selectedSources.isEmpty() && addSourceState.pendingName == null) {
                     Text(
                         text = stringResource(R.string.episode_wizard_no_sources_yet),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
-                    uiState.availableSources.forEach { source ->
-                        val isSelected = uiState.selectedSourceIds.contains(source.id)
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable { onToggleSourceSelection(source.id) },
-                            shape = ExpressiveShapes.small,
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                                else MaterialTheme.colorScheme.surfaceContainer
+                    Text(
+                        text = stringResource(R.string.episode_wizard_selected_sources, selectedSources.size),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        selectedSources.forEach { source ->
+                            SelectedSourceBox(
+                                title = source.title,
+                                enabled = !uiState.isDrafting,
+                                onRemove = { onRemoveSource(source.id) }
                             )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = isSelected,
-                                    onCheckedChange = { onToggleSourceSelection(source.id) }
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = source.title,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = "${source.contents.length} chars",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
                         }
+                        addSourceState.pendingName?.let { PendingSourceBox(it) }
                     }
+                }
+
+                // Errors from files / Drive (the text dialog shows its own).
+                if (addSourceState.errorMessage != null && !addSourceState.showTextDialog) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = addSourceState.errorMessage,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
@@ -406,7 +409,7 @@ private fun EpisodeWizardScreen(
                         .fillMaxWidth()
                         .height(52.dp),
                     shape = ExpressiveShapes.medium,
-                    enabled = !uiState.isDrafting && uiState.selectedSourceIds.isNotEmpty()
+                    enabled = !uiState.isDrafting && !uiState.addSource.isAdding && uiState.selectedSourceIds.isNotEmpty()
                 ) {
                     if (uiState.isDrafting) {
                         CircularProgressIndicator(
@@ -694,193 +697,22 @@ private fun EpisodeWizardScreen(
             }
         }
 
-        // Add Source Dialog
-        if (uiState.addSource.showAddDialog) {
-            val addSourceState = uiState.addSource
-            AlertDialog(
-                onDismissRequest = { if (!addSourceState.isUploading) onDismissAddSourceDialog() },
-                title = {
-                    Text(
-                        text = stringResource(R.string.sources_add_title),
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                text = {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        TabRow(
-                            selectedTabIndex = addSourceState.addSourceMode.ordinal,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Tab(
-                                selected = addSourceState.addSourceMode == AddSourceMode.LOCAL_FILE,
-                                onClick = { onSetAddSourceMode(AddSourceMode.LOCAL_FILE) },
-                                text = { Text(stringResource(R.string.sources_tab_file)) }
-                            )
-                            Tab(
-                                selected = addSourceState.addSourceMode == AddSourceMode.GOOGLE_DRIVE,
-                                onClick = { onSetAddSourceMode(AddSourceMode.GOOGLE_DRIVE) },
-                                text = { Text(stringResource(R.string.sources_tab_drive)) }
-                            )
-                            Tab(
-                                selected = addSourceState.addSourceMode == AddSourceMode.PLAIN_TEXT,
-                                onClick = { onSetAddSourceMode(AddSourceMode.PLAIN_TEXT) },
-                                text = { Text(stringResource(R.string.sources_tab_text)) }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        when (addSourceState.addSourceMode) {
-                            AddSourceMode.LOCAL_FILE -> {
-                                OutlinedButton(
-                                    onClick = onPickLocalFile,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = ExpressiveShapes.small,
-                                    enabled = !addSourceState.isUploading
-                                ) {
-                                    Icon(Icons.Default.FolderOpen, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(stringResource(R.string.sources_select_file_button))
-                                }
-
-                                if (addSourceState.selectedFileName != null) {
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    AddSourceFileCard(
-                                        fileName = addSourceState.selectedFileName,
-                                        isTextFile = addSourceState.isTextFile
-                                    )
-
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    OutlinedTextField(
-                                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                                        value = addSourceState.sourceTitle,
-                                        onValueChange = onAddSourceTitleChanged,
-                                        label = { Text(stringResource(R.string.sources_source_title_label)) },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = ExpressiveShapes.small,
-                                        singleLine = true,
-                                        enabled = !addSourceState.isUploading
-                                    )
-                                }
-                            }
-
-                            AddSourceMode.GOOGLE_DRIVE -> {
-                                OutlinedButton(
-                                    onClick = onPickDriveFile,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = ExpressiveShapes.small,
-                                    enabled = !addSourceState.isUploading && !addSourceState.isDriveResolving
-                                ) {
-                                    Icon(Icons.Default.Cloud, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(stringResource(R.string.sources_pick_drive_button))
-                                }
-
-                                if (addSourceState.selectedFileName != null) {
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    AddSourceDriveFileCard(
-                                        fileName = addSourceState.selectedFileName,
-                                        isResolving = addSourceState.isDriveResolving,
-                                        isResolved = addSourceState.driveFileId != null
-                                    )
-
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    OutlinedTextField(
-                                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                                        value = addSourceState.sourceTitle,
-                                        onValueChange = onAddSourceTitleChanged,
-                                        label = { Text(stringResource(R.string.sources_source_title_label)) },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = ExpressiveShapes.small,
-                                        singleLine = true,
-                                        enabled = !addSourceState.isUploading
-                                    )
-                                }
-                            }
-
-                            AddSourceMode.PLAIN_TEXT -> {
-                                OutlinedTextField(
-                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                                    value = addSourceState.sourceTitle,
-                                    onValueChange = onAddSourceTitleChanged,
-                                    label = { Text(stringResource(R.string.sources_source_title_label)) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = ExpressiveShapes.small,
-                                    singleLine = true,
-                                    enabled = !addSourceState.isUploading
-                                )
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                OutlinedTextField(
-                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                                    value = addSourceState.sourceContent,
-                                    onValueChange = onAddSourceContentChanged,
-                                    label = { Text(stringResource(R.string.sources_source_content_label)) },
-                                    placeholder = { Text(stringResource(R.string.sources_source_content_hint)) },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(130.dp),
-                                    shape = ExpressiveShapes.small,
-                                    enabled = !addSourceState.isUploading
-                                )
-                            }
-                        }
-
-                        if (addSourceState.isUploading) {
-                            Spacer(modifier = Modifier.height(14.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = stringResource(R.string.sources_uploading_source),
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                        }
-
-                        if (addSourceState.errorMessage != null) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = addSourceState.errorMessage,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    val canSubmit = when (addSourceState.addSourceMode) {
-                        AddSourceMode.PLAIN_TEXT ->
-                            addSourceState.sourceTitle.isNotBlank() && addSourceState.sourceContent.isNotBlank()
-                        AddSourceMode.LOCAL_FILE ->
-                            addSourceState.selectedFileUri != null
-                        AddSourceMode.GOOGLE_DRIVE ->
-                            (addSourceState.driveFileId != null && addSourceState.driveAccessToken != null) ||
-                                addSourceState.selectedFileUri != null
-                    } && !addSourceState.isUploading && !addSourceState.isDriveResolving
-
-                    Button(
-                        onClick = onSubmitAddSource,
-                        enabled = canSubmit,
-                        shape = ExpressiveShapes.small
-                    ) {
-                        Text(stringResource(R.string.action_save))
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = onDismissAddSourceDialog,
-                        enabled = !addSourceState.isUploading
-                    ) {
-                        Text(stringResource(R.string.action_cancel))
-                    }
-                },
-                shape = ExpressiveShapes.large
+        // Add plain text / pick existing sources dialogs
+        if (uiState.addSource.showTextDialog) {
+            TextSourceDialog(
+                state = uiState.addSource,
+                onTitleChanged = onAddSourceTitleChanged,
+                onContentChanged = onAddSourceContentChanged,
+                onSubmit = onSubmitTextSource,
+                onDismiss = onDismissTextSourceDialog
+            )
+        }
+        if (uiState.addSource.showExistingDialog) {
+            ExistingSourcesDialog(
+                sources = uiState.availableSources,
+                initiallySelected = uiState.selectedSourceIds,
+                onConfirm = onConfirmExistingSources,
+                onDismiss = onDismissExistingSourcesDialog
             )
         }
     }
@@ -904,110 +736,295 @@ private fun EpisodeWizardScreen(
 }
 
 @Composable
-private fun AddSourceFileCard(
-    fileName: String,
-    isTextFile: Boolean
+private fun SourceActionButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier,
+        shape = ExpressiveShapes.small,
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        Icon(
-            imageVector = if (isTextFile) Icons.Default.Description else Icons.Default.PictureAsPdf,
-            contentDescription = null,
-            tint = if (isTextFile) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = fileName,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = label, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
+/** A source added to the episode, shown as a box with its name and a way to take it out again. */
 @Composable
-private fun AddSourceDriveFileCard(
-    fileName: String,
-    isResolving: Boolean,
-    isResolved: Boolean
+private fun SelectedSourceBox(
+    title: String,
+    enabled: Boolean,
+    onRemove: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(12.dp)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveShapes.small,
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
+            modifier = Modifier.padding(start = 12.dp, top = 2.dp, bottom = 2.dp, end = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Default.Cloud,
+                imageVector = Icons.Default.Description,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = fileName,
+                text = title,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (isResolving) {
-                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 1.5.dp)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = stringResource(R.string.sources_drive_resolving),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else if (isResolved) {
+            IconButton(onClick = onRemove, enabled = enabled) {
                 Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = stringResource(R.string.sources_drive_linked),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.episode_wizard_remove_source, title),
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
     }
+}
+
+/** Placeholder box for a file / Drive document that is still being added. */
+@Composable
+private fun PendingSourceBox(name: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveShapes.small,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = stringResource(R.string.sources_uploading_source),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TextSourceDialog(
+    state: AddSourceUiState,
+    onTitleChanged: (String) -> Unit,
+    onContentChanged: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = stringResource(R.string.sources_add_text_title), fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    value = state.sourceTitle,
+                    onValueChange = onTitleChanged,
+                    label = { Text(stringResource(R.string.sources_source_title_label)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveShapes.small,
+                    singleLine = true,
+                    enabled = !state.isAdding
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedTextField(
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    value = state.sourceContent,
+                    onValueChange = onContentChanged,
+                    label = { Text(stringResource(R.string.sources_source_content_label)) },
+                    placeholder = { Text(stringResource(R.string.sources_source_content_hint)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp),
+                    shape = ExpressiveShapes.small,
+                    enabled = !state.isAdding
+                )
+                if (state.isAdding) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.sources_uploading_source),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+                if (state.errorMessage != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = state.errorMessage,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onSubmit,
+                enabled = state.sourceTitle.isNotBlank() && state.sourceContent.isNotBlank() && !state.isAdding,
+                shape = ExpressiveShapes.small
+            ) {
+                Text(stringResource(R.string.action_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !state.isAdding) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+        shape = ExpressiveShapes.large
+    )
+}
+
+/** Pick any number of the show's existing sources to use in this episode. */
+@Composable
+private fun ExistingSourcesDialog(
+    sources: List<Source>,
+    initiallySelected: Set<String>,
+    onConfirm: (Set<String>) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selected by rememberSaveable { mutableStateOf(initiallySelected.toList()) }
+    val allSelected = sources.isNotEmpty() && sources.all { it.id in selected }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = stringResource(R.string.episode_wizard_existing_sources_title), fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (sources.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.episode_wizard_existing_sources_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${selected.size}/${sources.size}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        TextButton(
+                            onClick = { selected = if (allSelected) emptyList() else sources.map { it.id } }
+                        ) {
+                            Text(
+                                stringResource(
+                                    if (allSelected) R.string.episode_wizard_deselect_all_sources
+                                    else R.string.episode_wizard_select_all_sources
+                                )
+                            )
+                        }
+                    }
+                    Column(
+                        modifier = Modifier
+                            .heightIn(max = 360.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        sources.forEach { source ->
+                            val isSelected = source.id in selected
+                            val toggle = {
+                                selected = if (isSelected) selected - source.id else selected + source.id
+                            }
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { toggle() },
+                                shape = ExpressiveShapes.small,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceContainer
+                                    }
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp, horizontal = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(checked = isSelected, onCheckedChange = { toggle() })
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = source.title,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "${source.contents.length} chars",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(selected.toSet()) },
+                enabled = sources.isNotEmpty(),
+                shape = ExpressiveShapes.small
+            ) {
+                Text(stringResource(R.string.action_done))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+        shape = ExpressiveShapes.large
+    )
 }
 
 @Composable
@@ -1102,16 +1119,17 @@ fun EpisodeWizardStep1Preview() {
             ),
             pagerState = rememberPagerState(pageCount = { 1 }),
             onNavigateBack = {},
-            onToggleSourceSelection = {},
-            onToggleSelectAllSources = {},
-            onOpenAddSourceDialog = {},
-            onDismissAddSourceDialog = {},
-            onSetAddSourceMode = {},
-            onAddSourceTitleChanged = {},
-            onAddSourceContentChanged = {},
+            onRemoveSource = {},
             onPickLocalFile = {},
             onPickDriveFile = {},
-            onSubmitAddSource = {},
+            onOpenTextSourceDialog = {},
+            onDismissTextSourceDialog = {},
+            onAddSourceTitleChanged = {},
+            onAddSourceContentChanged = {},
+            onSubmitTextSource = {},
+            onOpenExistingSourcesDialog = {},
+            onDismissExistingSourcesDialog = {},
+            onConfirmExistingSources = {},
             onSteeringPromptChanged = {},
             onSetEpisodeLength = {},
             onGenerateSuggestions = {},
@@ -1160,16 +1178,17 @@ fun EpisodeWizardStep2Preview() {
             ),
             pagerState = rememberPagerState(pageCount = { 1 }),
             onNavigateBack = {},
-            onToggleSourceSelection = {},
-            onToggleSelectAllSources = {},
-            onOpenAddSourceDialog = {},
-            onDismissAddSourceDialog = {},
-            onSetAddSourceMode = {},
-            onAddSourceTitleChanged = {},
-            onAddSourceContentChanged = {},
+            onRemoveSource = {},
             onPickLocalFile = {},
             onPickDriveFile = {},
-            onSubmitAddSource = {},
+            onOpenTextSourceDialog = {},
+            onDismissTextSourceDialog = {},
+            onAddSourceTitleChanged = {},
+            onAddSourceContentChanged = {},
+            onSubmitTextSource = {},
+            onOpenExistingSourcesDialog = {},
+            onDismissExistingSourcesDialog = {},
+            onConfirmExistingSources = {},
             onSteeringPromptChanged = {},
             onSetEpisodeLength = {},
             onGenerateSuggestions = {},

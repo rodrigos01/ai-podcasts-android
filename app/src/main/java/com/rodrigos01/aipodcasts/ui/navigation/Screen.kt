@@ -10,6 +10,9 @@ sealed class Screen(val route: String) {
     object PodcastEdit : Screen("podcast_edit/{podcastId}") {
         fun createRoute(podcastId: String) = "podcast_edit/$podcastId"
     }
+    object PodcastSources : Screen("podcast_sources/{podcastId}") {
+        fun createRoute(podcastId: String) = "podcast_sources/$podcastId"
+    }
     object EpisodeWizard : Screen("episode_wizard/{podcastId}") {
         fun createRoute(podcastId: String) = "episode_wizard/$podcastId"
     }
