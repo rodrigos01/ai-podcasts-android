@@ -87,6 +87,8 @@ fun ExpressiveTopAppBar(
     title: String,
     canNavigateBack: Boolean = false,
     onNavigateBack: () -> Unit = {},
+    /** Fades the title in/out, for screens that show it expanded in the content first. */
+    titleAlpha: Float = 1f,
     actions: @Composable () -> Unit = {}
 ) {
     TopAppBar(
@@ -96,7 +98,8 @@ fun ExpressiveTopAppBar(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.alpha(titleAlpha)
             )
         },
         navigationIcon = {

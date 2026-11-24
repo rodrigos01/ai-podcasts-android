@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -50,6 +51,7 @@ import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignSection
 fun PodcastEditScreen(
     podcastId: String,
     onNavigateBack: () -> Unit,
+    onNavigateToSources: () -> Unit,
     viewModel: PodcastEditViewModel = viewModel(factory = PodcastEditViewModel.provideFactory(podcastId))
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -222,6 +224,31 @@ fun PodcastEditScreen(
                         Text(
                             text = stringResource(R.string.podcast_edit_add_host),
                             modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+
+                    Text(
+                        text = stringResource(R.string.podcast_edit_sources_header),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = stringResource(R.string.podcast_edit_sources_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(
+                        onClick = onNavigateToSources,
+                        enabled = editable,
+                        shape = ExpressiveShapes.medium
+                    ) {
+                        Text(stringResource(R.string.sources_manage_button_count, state.sourceCount))
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .size(18.dp)
                         )
                     }
 

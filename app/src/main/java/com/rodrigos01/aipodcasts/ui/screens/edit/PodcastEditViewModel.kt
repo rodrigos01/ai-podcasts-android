@@ -8,10 +8,12 @@ import com.rodrigos01.aipodcasts.AIPodcastsApplication
 import com.rodrigos01.aipodcasts.data.model.Host
 import com.rodrigos01.aipodcasts.data.model.Podcast
 import com.rodrigos01.aipodcasts.data.repository.PodcastRepository
+import com.rodrigos01.aipodcasts.data.repository.SourceRepository
 import com.rodrigos01.aipodcasts.ui.voice.VoiceDesignController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -24,6 +26,8 @@ data class PodcastEditUiState(
     val structure: String = "",
     val extraInstructions: String = "",
     val hosts: List<Host> = emptyList(),
+    /** Number of sources on the show; managed on their own screen. */
+    val sourceCount: Int = 0,
     /** Voice ids picked in this screen, so those hosts can be flagged as having a new voice. */
     val pickedVoiceIds: Set<String> = emptySet(),
     /** The host whose voice picker is open inline, if any. */
@@ -35,7 +39,8 @@ data class PodcastEditUiState(
 
 class PodcastEditViewModel(
     private val podcastId: String,
-    private val podcastRepo: PodcastRepository = AIPodcastsApplication.instance.podcastRepository
+    private val podcastRepo: PodcastRepository = AIPodcastsApplication.instance.podcastRepository,
+    private val sourceRepo: SourceRepository = AIPodcastsApplication.instance.sourceRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PodcastEditUiState())
@@ -74,6 +79,11 @@ class PodcastEditViewModel(
     }
 
     init {
+        viewModelScope.launch {
+            sourceRepo.getSourcesFlow(podcastId)
+                .catch { /* the count is informational only */ }
+                .collect { sources -> _uiState.update { it.copy(sourceCount = sources.size) } }
+        }
         viewModelScope.launch {
             try {
                 val podcast = podcastRepo.getPodcast(podcastId)

@@ -11,40 +11,36 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,7 +51,6 @@ import com.rodrigos01.aipodcasts.R
 import com.rodrigos01.aipodcasts.data.model.Episode
 import com.rodrigos01.aipodcasts.data.model.Host
 import com.rodrigos01.aipodcasts.data.model.Podcast
-import com.rodrigos01.aipodcasts.data.model.Source
 import com.rodrigos01.aipodcasts.ui.components.EmptyState
 import com.rodrigos01.aipodcasts.ui.components.ExpressiveTopAppBar
 import com.rodrigos01.aipodcasts.ui.components.LocalContentPadding
@@ -64,6 +59,9 @@ import com.rodrigos01.aipodcasts.ui.components.VoiceChip
 import com.rodrigos01.aipodcasts.ui.components.plus
 import com.rodrigos01.aipodcasts.ui.theme.AIPodcastsTheme
 import com.rodrigos01.aipodcasts.ui.theme.ExpressiveShapes
+
+/** How many lines of the show description are visible before "Show more". */
+private const val DESCRIPTION_COLLAPSED_LINES = 4
 
 @Composable
 fun PodcastDetailScreen(
@@ -82,15 +80,12 @@ fun PodcastDetailScreen(
         onNavigateToEpisodeWizard = { onNavigateToEpisodeWizard(podcastId) },
         onNavigateToEpisodeDetail = { episodeId -> onNavigateToEpisodeDetail(podcastId, episodeId) },
         onNavigateToEdit = { onNavigateToEdit(podcastId) },
-        onTabSelected = { viewModel.selectTab(it) },
-        onDeleteSource = { sourceId -> viewModel.deleteSource(sourceId) },
         onPromptDeleteEpisode = { viewModel.promptDeleteEpisode(it) },
         onDismissDeleteEpisodeDialog = { viewModel.dismissDeleteEpisodeDialog() },
         onConfirmDeleteEpisode = { viewModel.confirmDeleteEpisode() }
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PodcastDetailScreen(
     uiState: PodcastDetailUiState,
@@ -98,22 +93,38 @@ private fun PodcastDetailScreen(
     onNavigateToEpisodeWizard: () -> Unit,
     onNavigateToEpisodeDetail: (String) -> Unit,
     onNavigateToEdit: () -> Unit,
-    onTabSelected: (Int) -> Unit,
-    onDeleteSource: (String) -> Unit,
     onPromptDeleteEpisode: (Episode) -> Unit,
     onDismissDeleteEpisodeDialog: () -> Unit,
     onConfirmDeleteEpisode: () -> Unit
 ) {
     val contentPadding = LocalContentPadding.current
+    val podcast = uiState.podcast
+    val listState = rememberLazyListState()
+    var detailsExpanded by rememberSaveable { mutableStateOf(false) }
+
+    // The show title is the first list item, shown at full size. As it scrolls away the app
+    // bar's own (single-line) title fades in, so the bar reads as expanded -> collapsed.
+    var titleHeightPx by remember { mutableIntStateOf(0) }
+    val barTitleAlpha by remember(podcast) {
+        derivedStateOf {
+            when {
+                podcast == null -> 1f
+                listState.firstVisibleItemIndex > 0 -> 1f
+                titleHeightPx <= 0 -> 0f
+                else -> (listState.firstVisibleItemScrollOffset / titleHeightPx.toFloat()).coerceIn(0f, 1f)
+            }
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             ExpressiveTopAppBar(
-                title = uiState.podcast?.title ?: stringResource(R.string.podcast_detail_title),
+                title = podcast?.title ?: stringResource(R.string.podcast_detail_title),
                 canNavigateBack = true,
                 onNavigateBack = onNavigateBack,
+                titleAlpha = barTitleAlpha,
                 actions = {
-                    if (uiState.podcast != null) {
+                    if (podcast != null) {
                         IconButton(onClick = onNavigateToEdit) {
                             Icon(
                                 imageVector = Icons.Default.Edit,
@@ -123,166 +134,92 @@ private fun PodcastDetailScreen(
                     }
                 }
             )
-            val tabs = listOf(
-                stringResource(R.string.podcast_detail_tab_episodes),
-                stringResource(R.string.podcast_detail_tab_sources),
-                stringResource(R.string.podcast_detail_tab_about)
-            )
 
-            TabRow(
-                selectedTabIndex = uiState.selectedTab,
-                containerColor = MaterialTheme.colorScheme.surface
-            ) {
-                tabs.forEachIndexed { index, label ->
-                    Tab(
-                        selected = uiState.selectedTab == index,
-                        onClick = { onTabSelected(index) },
-                        text = {
-                            Text(
-                                text = label,
-                                fontWeight = if (uiState.selectedTab == index) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    )
+            if (podcast == null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    if (uiState.isLoading) CircularProgressIndicator()
                 }
-            }
-
-            when {
-                uiState.isLoading && uiState.podcast == null -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                }
-                uiState.selectedTab == 0 -> {
-                    // Episodes Tab
-                    if (uiState.episodes.isEmpty()) {
-                        EmptyState(
-                            icon = Icons.Default.GraphicEq,
-                            title = stringResource(R.string.podcast_detail_no_episodes),
-                            description = "",
-                            actionButtonText = stringResource(R.string.podcast_detail_new_episode_fab),
-                            onActionClick = onNavigateToEpisodeWizard
-                        )
-                    } else {
-                        LazyColumn(
-                            contentPadding = contentPadding + PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            items(uiState.episodes, key = { it.id }) { episode ->
-                                EpisodeItemCard(
-                                    episode = episode,
-                                    onClick = { onNavigateToEpisodeDetail(episode.id) },
-                                    onDelete = { onPromptDeleteEpisode(episode) }
-                                )
-                            }
-                        }
-                    }
-                }
-                uiState.selectedTab == 1 -> {
-                    // Sources Tab
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        Row(
+            } else {
+                LazyColumn(
+                    state = listState,
+                    contentPadding = contentPadding + PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 0.dp,
+                        // Clear the floating "new episode" button.
+                        bottom = 88.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    item(key = "title") {
+                        Text(
+                            text = podcast.title,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = stringResource(R.string.sources_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                                .padding(horizontal = 4.dp)
+                                .onSizeChanged { titleHeightPx = it.height }
+                        )
+                    }
 
-                        if (uiState.sources.isEmpty()) {
-                            EmptyState(
-                                icon = Icons.Default.Description,
-                                title = stringResource(R.string.podcast_detail_no_sources),
-                                description = stringResource(R.string.sources_desc)
+                    item(key = "description") {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = podcast.description,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = if (detailsExpanded) Int.MAX_VALUE else DESCRIPTION_COLLAPSED_LINES,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 4.dp)
                             )
-                        } else {
-                            LazyColumn(
-                                contentPadding = contentPadding + PaddingValues(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
-                                modifier = Modifier.fillMaxSize()
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
                             ) {
-                                items(uiState.sources, key = { it.id }) { source ->
-                                    SourceItemCard(
-                                        source = source,
-                                        onDelete = { onDeleteSource(source.id) }
+                                TextButton(onClick = { detailsExpanded = !detailsExpanded }) {
+                                    Text(
+                                        stringResource(
+                                            if (detailsExpanded) R.string.podcast_detail_show_less
+                                            else R.string.podcast_detail_show_more
+                                        )
                                     )
                                 }
                             }
                         }
                     }
-                }
-                uiState.selectedTab == 2 -> {
-                    // About Show Tab
-                    val podcast = uiState.podcast
-                    if (podcast != null) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
-                                .padding(contentPadding + PaddingValues(20.dp))
-                        ) {
-                            Text(
-                                text = podcast.title,
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+
+                    if (detailsExpanded) {
+                        aboutShowItems(podcast)
+                    }
+
+                    item(key = "episodes_header") {
+                        Text(
+                            text = stringResource(R.string.podcast_detail_episodes_header),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+                    }
+
+                    if (uiState.episodes.isEmpty()) {
+                        item(key = "episodes_empty") {
+                            EmptyState(
+                                icon = Icons.Default.GraphicEq,
+                                title = stringResource(R.string.podcast_detail_no_episodes),
+                                description = "",
+                                actionButtonText = stringResource(R.string.podcast_detail_new_episode_fab),
+                                onActionClick = onNavigateToEpisodeWizard
                             )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = podcast.description,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
+                        }
+                    } else {
+                        items(uiState.episodes, key = { it.id }) { episode ->
+                            EpisodeItemCard(
+                                episode = episode,
+                                onClick = { onNavigateToEpisodeDetail(episode.id) },
+                                onDelete = { onPromptDeleteEpisode(episode) }
                             )
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            Text(
-                                text = stringResource(R.string.podcast_detail_hosts_header),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            podcast.hosts.forEach { host ->
-                                HostDetailCard(host = host)
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-
-                            if (podcast.structure.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(24.dp))
-                                Text(
-                                    text = stringResource(R.string.podcast_detail_structure_header),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = podcast.structure,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            if (!podcast.extraInstructions.isNullOrBlank()) {
-                                Spacer(modifier = Modifier.height(24.dp))
-                                Text(
-                                    text = stringResource(R.string.podcast_extra_instructions_label),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = podcast.extraInstructions,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
                         }
                     }
                 }
@@ -308,25 +245,73 @@ private fun PodcastDetailScreen(
             )
         }
 
-        if (uiState.selectedTab == 0) {
-            FloatingActionButton(
-                onClick = onNavigateToEpisodeWizard,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(
-                        end = 16.dp,
-                        bottom = contentPadding.calculateBottomPadding() + 16.dp
-                    ),
-                shape = ExpressiveShapes.medium,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = stringResource(R.string.podcast_detail_new_episode_fab)
-                )
-            }
+        FloatingActionButton(
+            onClick = onNavigateToEpisodeWizard,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(
+                    end = 16.dp,
+                    bottom = contentPadding.calculateBottomPadding() + 16.dp
+                ),
+            shape = ExpressiveShapes.medium,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = stringResource(R.string.podcast_detail_new_episode_fab)
+            )
         }
+    }
+}
+
+/** The rest of the "about show" content, shown under the description once expanded. */
+private fun androidx.compose.foundation.lazy.LazyListScope.aboutShowItems(podcast: Podcast) {
+    item(key = "about_hosts_header") {
+        Text(
+            text = stringResource(R.string.podcast_detail_hosts_header),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+    }
+    items(podcast.hosts, key = { "host_${it.id}_${it.name}" }) { host ->
+        HostDetailCard(host = host)
+    }
+
+    if (podcast.structure.isNotBlank()) {
+        item(key = "about_structure") {
+            AboutTextSection(
+                header = stringResource(R.string.podcast_detail_structure_header),
+                body = podcast.structure
+            )
+        }
+    }
+
+    if (!podcast.extraInstructions.isNullOrBlank()) {
+        item(key = "about_extra_instructions") {
+            AboutTextSection(
+                header = stringResource(R.string.podcast_extra_instructions_label),
+                body = podcast.extraInstructions
+            )
+        }
+    }
+}
+
+@Composable
+private fun AboutTextSection(header: String, body: String) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+        Text(
+            text = header,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = body,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -400,67 +385,6 @@ fun EpisodeItemCard(
 }
 
 @Composable
-fun SourceItemCard(
-    source: Source,
-    onDelete: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ExpressiveShapes.small,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                modifier = Modifier.size(36.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Description,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = source.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "${source.contents.length} characters",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            IconButton(onClick = onDelete) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.action_delete),
-                    tint = MaterialTheme.colorScheme.outline
-                )
-            }
-        }
-    }
-}
-
-@Composable
 fun HostDetailCard(host: Host) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -492,13 +416,15 @@ fun HostDetailCard(host: Host) {
     }
 }
 
-@Preview(showSystemUi = true, name = "Podcast Detail - Episodes")
+@Preview(showSystemUi = true, name = "Podcast Detail")
 @Composable
-fun PodcastDetailEpisodesPreview() {
+fun PodcastDetailPreview() {
     val samplePodcast = Podcast(
         id = "1",
         title = "AI in the Real World",
-        description = "A deep dive into how AI is changing our daily lives.",
+        description = "A deep dive into how AI is changing our daily lives, from medicine and finance to " +
+            "the way we work, learn and create. Every week we unpack one idea with a new guest, " +
+            "separating the hype from what is actually shipping today.",
         structure = "Interview style",
         hosts = listOf(Host(id = "h1", name = "Sarah Chen", voice = "Nova", persona = "Tech Expert"))
     )
@@ -511,44 +437,12 @@ fun PodcastDetailEpisodesPreview() {
         PodcastDetailScreen(
             uiState = PodcastDetailUiState(
                 podcast = samplePodcast,
-                episodes = sampleEpisodes,
-                selectedTab = 0
+                episodes = sampleEpisodes
             ),
             onNavigateBack = {},
             onNavigateToEpisodeWizard = {},
             onNavigateToEpisodeDetail = {},
             onNavigateToEdit = {},
-            onTabSelected = {},
-            onDeleteSource = {},
-            onPromptDeleteEpisode = {},
-            onDismissDeleteEpisodeDialog = {},
-            onConfirmDeleteEpisode = {}
-        )
-    }
-}
-
-@Preview(showSystemUi = true, name = "Podcast Detail - Sources")
-@Composable
-fun PodcastDetailSourcesPreview() {
-    val samplePodcast = Podcast(id = "1", title = "AI in the Real World", description = "", structure = "")
-    val sampleSources = listOf(
-        Source(id = "s1", title = "Medical Journal Article", contents = "Content summary..."),
-        Source(id = "s2", title = "Finance Report 2023", contents = "Market data...")
-    )
-
-    AIPodcastsTheme {
-        PodcastDetailScreen(
-            uiState = PodcastDetailUiState(
-                podcast = samplePodcast,
-                sources = sampleSources,
-                selectedTab = 1
-            ),
-            onNavigateBack = {},
-            onNavigateToEpisodeWizard = {},
-            onNavigateToEpisodeDetail = {},
-            onNavigateToEdit = {},
-            onTabSelected = {},
-            onDeleteSource = {},
             onPromptDeleteEpisode = {},
             onDismissDeleteEpisodeDialog = {},
             onConfirmDeleteEpisode = {}
