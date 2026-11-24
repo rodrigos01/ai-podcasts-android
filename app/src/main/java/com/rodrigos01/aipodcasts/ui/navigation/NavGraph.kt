@@ -24,6 +24,7 @@ import com.rodrigos01.aipodcasts.ui.screens.episode.EpisodeDetailViewModel
 import com.rodrigos01.aipodcasts.ui.screens.episode.EpisodeWizardScreen
 import com.rodrigos01.aipodcasts.ui.screens.home.HomeScreen
 import com.rodrigos01.aipodcasts.ui.screens.settings.SettingsScreen
+import com.rodrigos01.aipodcasts.ui.screens.sources.PodcastSourcesScreen
 import com.rodrigos01.aipodcasts.ui.screens.wizard.PodcastWizardScreen
 
 @UnstableApi
@@ -112,6 +113,20 @@ fun PodcastNavGraph(
             ) { backStackEntry ->
                 val podcastId = backStackEntry.arguments?.getString("podcastId") ?: ""
                 PodcastEditScreen(
+                    podcastId = podcastId,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToSources = {
+                        navController.navigate(Screen.PodcastSources.createRoute(podcastId))
+                    }
+                )
+            }
+
+            composable(
+                route = Screen.PodcastSources.route,
+                arguments = listOf(navArgument("podcastId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val podcastId = backStackEntry.arguments?.getString("podcastId") ?: ""
+                PodcastSourcesScreen(
                     podcastId = podcastId,
                     onNavigateBack = { navController.popBackStack() }
                 )

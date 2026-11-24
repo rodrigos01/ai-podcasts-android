@@ -26,25 +26,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-enum class AddSourceMode {
-    LOCAL_FILE,
-    GOOGLE_DRIVE,
-    PLAIN_TEXT
-}
-
+/**
+ * State of adding sources to the episode. Files and Drive documents are added straight after being
+ * picked (shown as a pending row while they upload); plain text and the existing-sources list each
+ * have their own dialog.
+ */
 data class AddSourceUiState(
-    val showAddDialog: Boolean = false,
-    val isUploading: Boolean = false,
-    val addSourceMode: AddSourceMode = AddSourceMode.LOCAL_FILE,
+    val showTextDialog: Boolean = false,
+    val showExistingDialog: Boolean = false,
+    /** A source is being created (uploaded / read / linked). */
+    val isAdding: Boolean = false,
+    /** Display name of the file or Drive document being added, if any. */
+    val pendingName: String? = null,
     val sourceTitle: String = "",
     val sourceContent: String = "",
-    val selectedFileUri: Uri? = null,
-    val selectedFileName: String? = null,
-    val isTextFile: Boolean = false,
-    val isDriveResolving: Boolean = false,
-    val driveFileId: String? = null,
-    val driveAccessToken: String? = null,
-    val driveStatusText: String? = null,
     val errorMessage: String? = null
 )
 
@@ -137,105 +132,141 @@ class EpisodeWizardViewModel(
         _uiState.value = _uiState.value.copy(selectedSourceIds = current)
     }
 
-    fun toggleSelectAllSources() {
-        val allIds = _uiState.value.availableSources.map { it.id }.toSet()
-        val allSelected = allIds.isNotEmpty() && _uiState.value.selectedSourceIds.containsAll(allIds)
+    /** Replaces the episode's sources with [ids] (from the "existing sources" dialog). */
+    fun setSelectedSources(ids: Set<String>) {
+        val known = _uiState.value.availableSources.map { it.id }.toSet()
         _uiState.value = _uiState.value.copy(
-            selectedSourceIds = if (allSelected) emptySet() else allIds
+            selectedSourceIds = ids.filter { it in known }.toSet(),
+            addSource = _uiState.value.addSource.copy(showExistingDialog = false)
         )
     }
 
-    // --- Inline "Add Source" dialog (mirrors the flow that used to live only on the Sources screen) ---
+    // --- Adding sources: local file / Google Drive (pick, then add straight away), plain text, existing ---
 
-    fun openAddSourceDialog() {
-        _uiState.value = _uiState.value.copy(addSource = AddSourceUiState(showAddDialog = true))
+    private fun updateAddSource(transform: (AddSourceUiState) -> AddSourceUiState) {
+        _uiState.value = _uiState.value.copy(addSource = transform(_uiState.value.addSource))
     }
 
-    fun dismissAddSourceDialog() {
-        _uiState.value = _uiState.value.copy(
-            addSource = _uiState.value.addSource.copy(
-                showAddDialog = false,
-                selectedFileUri = null,
-                selectedFileName = null,
-                driveFileId = null,
-                driveAccessToken = null
-            )
-        )
+    fun openExistingSourcesDialog() = updateAddSource { it.copy(showExistingDialog = true, errorMessage = null) }
+
+    fun dismissExistingSourcesDialog() = updateAddSource { it.copy(showExistingDialog = false) }
+
+    fun openTextSourceDialog() = updateAddSource {
+        it.copy(showTextDialog = true, sourceTitle = "", sourceContent = "", errorMessage = null)
     }
 
-    fun setAddSourceMode(mode: AddSourceMode) {
-        _uiState.value = _uiState.value.copy(
-            addSource = _uiState.value.addSource.copy(addSourceMode = mode, errorMessage = null)
-        )
+    fun dismissTextSourceDialog() = updateAddSource {
+        if (it.isAdding) it else it.copy(showTextDialog = false, errorMessage = null)
     }
 
-    fun onAddSourceTitleChanged(title: String) {
-        _uiState.value = _uiState.value.copy(addSource = _uiState.value.addSource.copy(sourceTitle = title))
+    fun onAddSourceTitleChanged(title: String) = updateAddSource { it.copy(sourceTitle = title) }
+
+    fun onAddSourceContentChanged(content: String) = updateAddSource { it.copy(sourceContent = content) }
+
+    fun setAddSourceError(message: String?) = updateAddSource {
+        it.copy(errorMessage = message, isAdding = false, pendingName = null)
     }
 
-    fun onAddSourceContentChanged(content: String) {
-        _uiState.value = _uiState.value.copy(addSource = _uiState.value.addSource.copy(sourceContent = content))
+    /** Creates a source via [create]; on success it is added to the list and selected for the episode. */
+    private fun addSource(pendingName: String?, create: suspend () -> Source) {
+        updateAddSource { it.copy(isAdding = true, pendingName = pendingName, errorMessage = null) }
+        viewModelScope.launch {
+            try {
+                val created = create()
+                _uiState.value = _uiState.value.copy(
+                    addSource = AddSourceUiState(),
+                    availableSources = listOf(created) + _uiState.value.availableSources,
+                    selectedSourceIds = _uiState.value.selectedSourceIds + created.id
+                )
+            } catch (e: Exception) {
+                updateAddSource {
+                    it.copy(isAdding = false, pendingName = null, errorMessage = e.userMessage())
+                }
+            }
+        }
     }
 
-    fun onAddSourceLocalFileSelected(context: Context, uri: Uri) {
-        val fileName = FileUtils.getFileName(context, uri)
-        val isText = FileUtils.isTextFile(context, uri, fileName)
-        _uiState.value = _uiState.value.copy(
-            addSource = _uiState.value.addSource.copy(
-                selectedFileUri = uri,
-                selectedFileName = fileName,
-                isTextFile = isText,
-                sourceTitle = FileUtils.cleanFileName(fileName) ?: fileName,
-                errorMessage = null
-            )
-        )
+    fun submitTextSource(podcastId: String) {
+        val state = _uiState.value.addSource
+        val title = state.sourceTitle.trim()
+        val content = state.sourceContent.trim()
+        if (state.isAdding || title.isBlank() || content.isBlank()) return
+        addSource(pendingName = null) { sourceRepo.createTextSource(podcastId, title, content) }
     }
 
-    fun setAddSourceError(message: String) {
-        _uiState.value = _uiState.value.copy(
-            addSource = _uiState.value.addSource.copy(
-                errorMessage = message,
-                isDriveResolving = false,
-                isUploading = false
-            )
-        )
+    fun onAddSourceLocalFileSelected(context: Context, podcastId: String, uri: Uri) {
+        if (_uiState.value.addSource.isAdding) return
+        val appContext = context.applicationContext
+        val fileName = FileUtils.getFileName(appContext, uri)
+        val title = FileUtils.cleanFileName(fileName) ?: fileName
+        val isText = FileUtils.isTextFile(appContext, uri, fileName)
+        addSource(pendingName = fileName) {
+            uploadFromUri(appContext, podcastId, uri, fileName, title, isText, "upload_pdf_temp.pdf")
+        }
     }
 
-    private var pendingDriveUri: Uri? = null
-    private var pendingRawTitle: String? = null
-    private var pendingCleanTitle: String? = null
+    private suspend fun uploadFromUri(
+        context: Context,
+        podcastId: String,
+        uri: Uri,
+        fileName: String,
+        title: String,
+        isText: Boolean,
+        tempName: String
+    ): Source =
+        if (isText) {
+            sourceRepo.createTextSource(podcastId, title, FileUtils.readTextFromUri(context, uri))
+        } else {
+            val tempFile = FileUtils.copyUriToTempFile(context, uri, tempName)
+            try {
+                sourceRepo.uploadPdfSource(
+                    podcastId = podcastId,
+                    file = tempFile,
+                    fileName = fileName,
+                    customTitle = title
+                )
+            } finally {
+                tempFile.delete()
+            }
+        }
+
+    // A Google Drive pick may need a consent screen in between, so what was picked is kept here
+    // until authorization completes.
+    private class PendingDrive(
+        val podcastId: String,
+        val uri: Uri,
+        val rawTitle: String,
+        val cleanTitle: String,
+        val isText: Boolean,
+        val docId: String?
+    )
+
+    private var pendingDrive: PendingDrive? = null
 
     fun onAddSourceDriveFileSelected(
         context: Context,
+        podcastId: String,
         uri: Uri,
         accountEmail: String? = null,
         onNeedConsent: (androidx.activity.result.IntentSenderRequest) -> Unit
     ) {
-        val rawTitle = FileUtils.getRawDisplayName(context, uri) ?: "Google Drive Document"
-        val cleanTitle = FileUtils.cleanFileName(rawTitle) ?: rawTitle
-        val isText = FileUtils.isTextFile(context, uri, rawTitle)
-        val extractedDocId = GoogleDriveHelper.extractGoogleDocId(uri)
-
-        pendingDriveUri = uri
-        pendingRawTitle = rawTitle
-        pendingCleanTitle = cleanTitle
-
-        _uiState.value = _uiState.value.copy(
-            addSource = _uiState.value.addSource.copy(
-                selectedFileUri = uri,
-                selectedFileName = rawTitle,
-                sourceTitle = cleanTitle,
-                isTextFile = isText,
-                isDriveResolving = true,
-                driveFileId = extractedDocId,
-                driveStatusText = null,
-                errorMessage = null
-            )
+        if (_uiState.value.addSource.isAdding) return
+        val appContext = context.applicationContext
+        val rawTitle = FileUtils.getRawDisplayName(appContext, uri) ?: "Google Drive Document"
+        val pending = PendingDrive(
+            podcastId = podcastId,
+            uri = uri,
+            rawTitle = rawTitle,
+            cleanTitle = FileUtils.cleanFileName(rawTitle) ?: rawTitle,
+            isText = FileUtils.isTextFile(appContext, uri, rawTitle),
+            docId = GoogleDriveHelper.extractGoogleDocId(uri)
         )
+        pendingDrive = pending
+        updateAddSource { it.copy(isAdding = true, pendingName = rawTitle, errorMessage = null) }
 
         viewModelScope.launch {
             try {
-                val authResult = GoogleDriveHelper.requestDocsAuthorization(context, accountEmail)
+                val authResult = GoogleDriveHelper.requestDocsAuthorization(appContext, accountEmail)
                 if (authResult.hasResolution()) {
                     val pendingIntent = authResult.pendingIntent
                     if (pendingIntent != null) {
@@ -243,187 +274,66 @@ class EpisodeWizardViewModel(
                             androidx.activity.result.IntentSenderRequest.Builder(pendingIntent.intentSender).build()
                         )
                     } else {
-                        _uiState.value = _uiState.value.copy(
-                            addSource = _uiState.value.addSource.copy(
-                                isDriveResolving = false,
-                                errorMessage = "Authorization failed: no resolution intent"
-                            )
-                        )
+                        failDrive("Authorization failed: no resolution intent")
                     }
                 } else {
                     val token = authResult.accessToken
                     if (token != null) {
-                        finishDriveResolution(rawTitle, cleanTitle, extractedDocId, token)
+                        finishDriveAdd(appContext, pending, token)
                     } else {
-                        _uiState.value = _uiState.value.copy(
-                            addSource = _uiState.value.addSource.copy(
-                                isDriveResolving = false,
-                                errorMessage = "Failed to obtain Google Drive access token"
-                            )
-                        )
+                        failDrive("Failed to obtain Google Drive access token")
                     }
                 }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    addSource = _uiState.value.addSource.copy(
-                        isDriveResolving = false,
-                        errorMessage = e.localizedMessage ?: "Failed to authorize Google Drive access"
-                    )
-                )
+                failDrive(e.localizedMessage ?: "Failed to authorize Google Drive access")
             }
         }
     }
 
     fun onAddSourceDriveConsentResult(context: Context, data: Intent?) {
-        val authResult = GoogleDriveHelper.getAuthorizationResultFromIntent(context, data)
-        val token = authResult?.accessToken
-        val rawTitle = pendingRawTitle ?: _uiState.value.addSource.selectedFileName ?: "Google Drive Document"
-        val cleanTitle = pendingCleanTitle ?: rawTitle
-        val initialDocId = _uiState.value.addSource.driveFileId
-
-        if (token != null) {
-            viewModelScope.launch {
-                finishDriveResolution(rawTitle, cleanTitle, initialDocId, token)
-            }
+        val appContext = context.applicationContext
+        val pending = pendingDrive
+        val token = GoogleDriveHelper.getAuthorizationResultFromIntent(appContext, data)?.accessToken
+        if (pending == null) {
+            failDrive("No Google Drive file selected")
+        } else if (token == null) {
+            failDrive("Google Drive authorization was not granted.")
         } else {
-            _uiState.value = _uiState.value.copy(
-                addSource = _uiState.value.addSource.copy(
-                    isDriveResolving = false,
-                    errorMessage = "Google Drive authorization was not granted."
-                )
-            )
+            viewModelScope.launch { finishDriveAdd(appContext, pending, token) }
         }
     }
 
-    private suspend fun finishDriveResolution(
-        rawTitle: String,
-        cleanTitle: String?,
-        initialDocId: String?,
-        token: String
-    ) {
-        val resolvedId = initialDocId ?: GoogleDriveHelper.resolveDriveFileId(rawTitle, cleanTitle, token)
-        _uiState.value = _uiState.value.copy(
-            addSource = _uiState.value.addSource.copy(
-                driveFileId = resolvedId,
-                driveAccessToken = token,
-                isDriveResolving = false,
-                driveStatusText = if (resolvedId != null) "Google Drive document linked" else "Google Drive file selected"
-            )
-        )
+    private fun failDrive(message: String) {
+        pendingDrive = null
+        setAddSourceError(message)
     }
 
-    fun submitAddSource(context: Context, podcastId: String) {
-        val addSourceState = _uiState.value.addSource
-
-        fun onCreated(created: Source) {
+    private suspend fun finishDriveAdd(context: Context, pending: PendingDrive, token: String) {
+        pendingDrive = null
+        try {
+            val fileId = pending.docId
+                ?: GoogleDriveHelper.resolveDriveFileId(pending.rawTitle, pending.cleanTitle, token)
+            val created = if (fileId != null) {
+                sourceRepo.createDriveSource(
+                    podcastId = pending.podcastId,
+                    fileId = fileId,
+                    accessToken = token,
+                    title = pending.cleanTitle
+                )
+            } else {
+                // Couldn't link it in Drive: fall back to uploading the picked file's content.
+                uploadFromUri(
+                    context, pending.podcastId, pending.uri, pending.rawTitle,
+                    pending.cleanTitle, pending.isText, "upload_drive_temp.pdf"
+                )
+            }
             _uiState.value = _uiState.value.copy(
                 addSource = AddSourceUiState(),
                 availableSources = listOf(created) + _uiState.value.availableSources,
                 selectedSourceIds = _uiState.value.selectedSourceIds + created.id
             )
-        }
-
-        fun onFailed(e: Exception) {
-            _uiState.value = _uiState.value.copy(
-                addSource = _uiState.value.addSource.copy(
-                    isUploading = false,
-                    errorMessage = e.userMessage()
-                )
-            )
-        }
-
-        when (addSourceState.addSourceMode) {
-            AddSourceMode.PLAIN_TEXT -> {
-                val title = addSourceState.sourceTitle.trim()
-                val content = addSourceState.sourceContent.trim()
-                if (title.isBlank() || content.isBlank()) return
-
-                viewModelScope.launch {
-                    _uiState.value = _uiState.value.copy(addSource = addSourceState.copy(isUploading = true, errorMessage = null))
-                    try {
-                        onCreated(sourceRepo.createTextSource(podcastId, title, content))
-                    } catch (e: Exception) {
-                        onFailed(e)
-                    }
-                }
-            }
-
-            AddSourceMode.LOCAL_FILE -> {
-                val uri = addSourceState.selectedFileUri ?: return
-                val title = addSourceState.sourceTitle.trim()
-                val fileName = addSourceState.selectedFileName ?: "document"
-                val finalTitle = title.ifBlank { FileUtils.cleanFileName(fileName) ?: fileName }
-                val isText = addSourceState.isTextFile
-
-                viewModelScope.launch {
-                    _uiState.value = _uiState.value.copy(addSource = addSourceState.copy(isUploading = true, errorMessage = null))
-                    try {
-                        val created = if (isText) {
-                            val textContent = FileUtils.readTextFromUri(context, uri)
-                            sourceRepo.createTextSource(podcastId, finalTitle, textContent)
-                        } else {
-                            val tempFile = FileUtils.copyUriToTempFile(context, uri, "upload_pdf_temp.pdf")
-                            try {
-                                sourceRepo.uploadPdfSource(
-                                    podcastId = podcastId,
-                                    file = tempFile,
-                                    fileName = fileName,
-                                    customTitle = finalTitle
-                                )
-                            } finally {
-                                tempFile.delete()
-                            }
-                        }
-                        onCreated(created)
-                    } catch (e: Exception) {
-                        onFailed(e)
-                    }
-                }
-            }
-
-            AddSourceMode.GOOGLE_DRIVE -> {
-                val fileId = addSourceState.driveFileId
-                val accessToken = addSourceState.driveAccessToken
-                val title = addSourceState.sourceTitle.trim()
-                val fileName = addSourceState.selectedFileName ?: "Google Drive Document"
-                val finalTitle = title.ifBlank { FileUtils.cleanFileName(fileName) ?: fileName }
-
-                viewModelScope.launch {
-                    _uiState.value = _uiState.value.copy(addSource = addSourceState.copy(isUploading = true, errorMessage = null))
-                    try {
-                        val created = if (fileId != null && accessToken != null) {
-                            sourceRepo.createDriveSource(
-                                podcastId = podcastId,
-                                fileId = fileId,
-                                accessToken = accessToken,
-                                title = finalTitle
-                            )
-                        } else {
-                            val uri = addSourceState.selectedFileUri
-                                ?: throw IllegalStateException("No Google Drive file selected")
-                            if (addSourceState.isTextFile) {
-                                val textContent = FileUtils.readTextFromUri(context, uri)
-                                sourceRepo.createTextSource(podcastId, finalTitle, textContent)
-                            } else {
-                                val tempFile = FileUtils.copyUriToTempFile(context, uri, "upload_drive_temp.pdf")
-                                try {
-                                    sourceRepo.uploadPdfSource(
-                                        podcastId = podcastId,
-                                        file = tempFile,
-                                        fileName = fileName,
-                                        customTitle = finalTitle
-                                    )
-                                } finally {
-                                    tempFile.delete()
-                                }
-                            }
-                        }
-                        onCreated(created)
-                    } catch (e: Exception) {
-                        onFailed(e)
-                    }
-                }
-            }
+        } catch (e: Exception) {
+            setAddSourceError(e.userMessage())
         }
     }
 
